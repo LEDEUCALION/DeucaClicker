@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Une nouvelle poussée sur une PR annule la précédente : inutile de payer pour
+# valider un état déjà périmé.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    name: Formatage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Version épinglée, et la même que celle du poste de développement : le
+      # formatage de clang-format varie d'une version à l'autre, et une CI qui
+      # rougit sur du code correct ne sert qu'à apprendre à l'ignorer.
+      - name: Installer clang-format
+        run: pip install "clang-format==23.1.0"
+
+      - name: Vérifier le formatage
+        run: |
+          find src tests \( -name '*.cpp' -o -name '*.hpp' \) -print0 \
+            | xargs -0 clang-format --dry-run --Werror --style=file
+
+  build:
+    name: Build ${{ matrix.preset }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [x64-debug, x64-release]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Sans ce cache, chaque exécution recompile imgui, freetype, libpng et
+      # zlib depuis les sources : près de trois minutes en local, davantage sur
+      # un runner. La clé suit le manifeste, donc le cache n'est invalidé que
+      # lorsqu'une dépendance change réellement.
+      - name: Restaurer le cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}\vcpkg_cache
+          key: vcpkg-${{ runner.os }}-${{ matrix.preset }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-${{ matrix.preset }}-
+            vcpkg-${{ runner.os }}-
+
+      - name: Préparer le dossier de cache
+        shell: cmd
+        run: if not exist "${{ github.workspace }}\vcpkg_cache" mkdir "${{ github.workspace }}\vcpkg_cache"
+
+      # Visual Studio livre Ninja sur un poste de développement, mais pas dans
+      # l'image du runner. On l'installe par pip plutôt que de dépendre de ce
+      # que l'image expose : c'est déterministe et c'est la même mécanique
+      # d'épinglage que pour clang-format.
+      - name: Installer Ninja
+        run: pip install "ninja==1.13.2"
+
+      - name: Configurer, compiler et tester
+        shell: cmd
+        env:
+          VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\vcpkg_cache
+        run: |
+          rem vswhere localise l'édition de Visual Studio installée sur le
+          rem runner, qui change au fil des images. Coder le chemin en dur est
+          rem la façon la plus sûre de casser la CI au prochain renouvellement.
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSPATH=%%i"
+          rem Les parenthèses sont obligatoires : sans elles, cmd détache le
+          rem « & exit » du if et le fait exécuter dans tous les cas.
+          if not defined VSPATH (echo Visual Studio introuvable & exit /b 1)
+
+          call "%VSPATH%\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+
+          rem CMake et Ninja livrés avec Visual Studio : on ne dépend pas de ce
+          rem que l'image du runner expose par ailleurs.
+          set "PATH=%VSPATH%\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;%VSPATH%\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja;%PATH%"
+          set "VCPKG_ROOT=%VCPKG_INSTALLATION_ROOT%"
+
+          rem Le clone vcpkg de l'image du runner ne contient pas forcement le
+          rem commit de baseline epingle dans vcpkg.json : il est fige au moment
+          rem ou l'image a ete construite. Sans ce fetch, vcpkg echoue avec
+          rem « failed to git show versions/baseline.json ». Le clone peut etre
+          rem superficiel, d'ou la tentative --unshallow avant le fetch simple.
+          git -C "%VCPKG_ROOT%" fetch --unshallow origin 2>nul || git -C "%VCPKG_ROOT%" fetch origin
+
+          rem Trace de l'outillage reellement retenu : quand la CI cassera parce
+          rem que l'image aura change, ces deux lignes diront ou regarder.
+          where cmake
+          where ninja
+
+          cmake --preset ${{ matrix.preset }} || exit /b 1
+          cmake --build --preset ${{ matrix.preset }} || exit /b 1
+          ctest --preset ${{ matrix.preset }} || exit /b 1
+
+      - name: Publier le binaire
+        if: matrix.preset == 'x64-release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeucaClicker-${{ matrix.preset }}
+          path: build/${{ matrix.preset }}/bin/DeucaClicker.exe
+          if-no-files-found: error

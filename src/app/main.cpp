@@ -1,8 +1,8 @@
+#include "platform/WindowsLean.hpp"
+
 #include "platform/ProcessSetup.hpp"
 #include "ui/ImGuiHost.hpp"
 #include "ui/MainPanel.hpp"
-
-#include "platform/WindowsLean.hpp"
 
 namespace
 {

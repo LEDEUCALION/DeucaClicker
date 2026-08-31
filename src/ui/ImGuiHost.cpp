@@ -1,10 +1,10 @@
 #include "ui/ImGuiHost.hpp"
 
+#include "platform/WindowsLean.hpp"
+
 #include <imgui.h>
 #include <imgui_impl_dx11.h>
 #include <imgui_impl_win32.h>
-
-#include "platform/WindowsLean.hpp"
 
 #include <d3d11.h>
 #include <dxgi.h>
@@ -33,6 +33,18 @@ void safeRelease(T*& resource) noexcept
         resource->Release();
         resource = nullptr;
     }
+}
+
+/// Replace la fenêtre sur le rectangle que Windows propose dans WM_DPICHANGED.
+///
+/// Ignorer ce rectangle, c'est ce qui fait qu'une application se retrouve à la
+/// mauvaise taille quand on la fait glisser entre deux écrans dont la mise à
+/// l'échelle diffère.
+void applySuggestedDpiRect(HWND hwnd, LPARAM lParam) noexcept
+{
+    const auto* suggested = reinterpret_cast<const RECT*>(lParam);
+    ::SetWindowPos(hwnd, nullptr, suggested->left, suggested->top, suggested->right - suggested->left,
+                   suggested->bottom - suggested->top, SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
 } // namespace
@@ -164,17 +176,8 @@ LRESULT CALLBACK ImGuiHost::Impl::windowProc(HWND hwnd, UINT message, WPARAM wPa
         return 0;
 
     case WM_DPICHANGED:
-    {
-        // Windows nous transmet le rectangle que la fenêtre devrait occuper sur
-        // le nouvel écran. L'ignorer, c'est ce qui fait qu'une application se
-        // retrouve à la mauvaise taille quand on la fait glisser entre deux
-        // écrans dont la mise à l'échelle diffère.
-        const auto* suggested = reinterpret_cast<const RECT*>(lParam);
-        ::SetWindowPos(hwnd, nullptr, suggested->left, suggested->top,
-                       suggested->right - suggested->left, suggested->bottom - suggested->top,
-                       SWP_NOZORDER | SWP_NOACTIVATE);
+        applySuggestedDpiRect(hwnd, lParam);
         return 0;
-    }
 
     case WM_SYSCOMMAND:
         // On avale l'activation du menu par Alt et F10 : il n'y a ici aucun
@@ -222,10 +225,9 @@ ImGuiHost::ImGuiHost(const Config& config) : m_impl{std::make_unique<Impl>()}
         return;
     }
 
-    m_impl->window =
-        ::CreateWindowExW(0, kWindowClassName, config.title.c_str(), WS_OVERLAPPEDWINDOW, CW_USEDEFAULT,
-                          CW_USEDEFAULT, config.width, config.height, nullptr, nullptr, m_impl->instance,
-                          nullptr);
+    m_impl->window = ::CreateWindowExW(0, kWindowClassName, config.title.c_str(), WS_OVERLAPPEDWINDOW,
+                                       CW_USEDEFAULT, CW_USEDEFAULT, config.width, config.height, nullptr,
+                                       nullptr, m_impl->instance, nullptr);
     if (m_impl->window == nullptr)
     {
         return;
@@ -256,8 +258,7 @@ ImGuiHost::ImGuiHost(const Config& config) : m_impl{std::make_unique<Impl>()}
     ImGui::StyleColorsDark();
     ImGui::GetStyle().ScaleAllSizes(dpiScale);
 
-    if (!ImGui_ImplWin32_Init(m_impl->window) ||
-        !ImGui_ImplDX11_Init(m_impl->device, m_impl->deviceContext))
+    if (!ImGui_ImplWin32_Init(m_impl->window) || !ImGui_ImplDX11_Init(m_impl->device, m_impl->deviceContext))
     {
         ImGui::DestroyContext();
         m_impl->destroyDevice();
