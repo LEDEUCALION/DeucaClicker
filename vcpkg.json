@@ -1,0 +1,29 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "deucaclicker",
+  "version-semver": "0.1.0",
+  "description": "Un auto-clicker Win32 ultra-rapide et à faible latence.",
+  "homepage": "https://github.com/LEDEUCALION/DeucaClicker",
+  "license": "MIT",
+  "supports": "windows & x64 & !uwp",
+  "dependencies": [
+    {
+      "name": "imgui",
+      "features": [
+        "docking-experimental",
+        "win32-binding",
+        "dx11-binding",
+        "freetype"
+      ]
+    }
+  ],
+  "features": {
+    "tests": {
+      "description": "Compiler la suite de tests unitaires.",
+      "dependencies": [
+        "catch2"
+      ]
+    }
+  },
+  "builtin-baseline": "ddd0023b0eee70986e42ed49d9d4afb8098f212e"
+}

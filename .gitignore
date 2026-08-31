@@ -1,0 +1,36 @@
+# --- Fichiers d'assistant : locaux uniquement, jamais publiés ---
+CLAUDE.md
+AGENTS.md
+.claude/
+.cursor/
+
+# --- Sortie de compilation ---
+build/
+out/
+[Bb]in/
+[Oo]bj/
+*.exe
+*.pdb
+*.ilk
+*.idb
+
+# --- CMake ---
+CMakeUserPresets.json
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+
+# --- vcpkg ---
+vcpkg_installed/
+
+# --- Visual Studio ---
+.vs/
+*.user
+*.suo
+*.VC.db
+*.VC.opendb
+
+# --- Divers ---
+.DS_Store
+Thumbs.db
