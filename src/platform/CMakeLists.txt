@@ -2,6 +2,8 @@
 # code a besoin du système d'exploitation passe par un en-tête déclaré ici.
 add_library(deuca_platform STATIC
     WindowsLean.hpp
+    HighResolutionTimer.hpp
+    HighResolutionTimer.cpp
     ProcessSetup.hpp
     ProcessSetup.cpp)
 

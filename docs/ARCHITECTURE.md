@@ -75,5 +75,6 @@ Trois presets :
 
 ## État
 
-Le squelette compile une fenêtre, et rien de plus. Le moteur arrive dans les
-branches qui suivent.
+Le squelette compile une fenêtre. La chaîne de temps existe et est testée :
+horloge, politique d'attente, timer haute résolution. Le moteur de clic
+arrive dans les branches qui suivent.
