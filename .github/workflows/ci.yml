@@ -62,6 +62,13 @@ jobs:
         shell: cmd
         run: if not exist "${{ github.workspace }}\vcpkg_cache" mkdir "${{ github.workspace }}\vcpkg_cache"
 
+      # Visual Studio livre Ninja sur un poste de développement, mais pas dans
+      # l'image du runner. On l'installe par pip plutôt que de dépendre de ce
+      # que l'image expose : c'est déterministe et c'est la même mécanique
+      # d'épinglage que pour clang-format.
+      - name: Installer Ninja
+        run: pip install "ninja==1.13.2"
+
       - name: Configurer, compiler et tester
         shell: cmd
         env:
@@ -81,6 +88,18 @@ jobs:
           rem que l'image du runner expose par ailleurs.
           set "PATH=%VSPATH%\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;%VSPATH%\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja;%PATH%"
           set "VCPKG_ROOT=%VCPKG_INSTALLATION_ROOT%"
+
+          rem Le clone vcpkg de l'image du runner ne contient pas forcement le
+          rem commit de baseline epingle dans vcpkg.json : il est fige au moment
+          rem ou l'image a ete construite. Sans ce fetch, vcpkg echoue avec
+          rem « failed to git show versions/baseline.json ». Le clone peut etre
+          rem superficiel, d'ou la tentative --unshallow avant le fetch simple.
+          git -C "%VCPKG_ROOT%" fetch --unshallow origin 2>nul || git -C "%VCPKG_ROOT%" fetch origin
+
+          rem Trace de l'outillage reellement retenu : quand la CI cassera parce
+          rem que l'image aura change, ces deux lignes diront ou regarder.
+          where cmake
+          where ninja
 
           cmake --preset ${{ matrix.preset }} || exit /b 1
           cmake --build --preset ${{ matrix.preset }} || exit /b 1
