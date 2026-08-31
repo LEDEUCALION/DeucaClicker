@@ -4,6 +4,9 @@ BasedOnStyle: Microsoft
 Standard: c++20
 ColumnLimit: 110
 IndentWidth: 4
+# Aligne public: et private: sur le mot-clé class plutôt que de les rentrer
+# de deux espaces, ce qui est la valeur héritée et ne ressemble à rien.
+AccessModifierOffset: -4
 PointerAlignment: Left
 ReferenceAlignment: Left
 AllowShortFunctionsOnASingleLine: Inline
@@ -12,13 +15,17 @@ SeparateDefinitionBlocks: Always
 SortIncludes: CaseInsensitive
 IncludeBlocks: Regroup
 IncludeCategories:
-  # Nos en-têtes d'abord, puis les tierces parties, puis la plateforme,
-  # puis la bibliothèque standard.
-  - Regex: '^"(core|platform|ui|engine)/'
-    Priority: 1
-  - Regex: '^<(imgui|catch2)'
-    Priority: 2
+  # WindowsLean d'abord : il pose WIN32_LEAN_AND_MEAN et NOMINMAX avant que
+  # quoi que ce soit d'autre ne puisse tirer <Windows.h> dans son dos.
   - Regex: '^"platform/WindowsLean\.hpp"'
+    Priority: 1
+  # Puis nos en-têtes, les bibliothèques tierces, le SDK Windows, et enfin
+  # la bibliothèque standard.
+  - Regex: '^"(core|platform|ui|engine)/'
+    Priority: 2
+  - Regex: '^<(imgui|catch2)'
     Priority: 3
-  - Regex: '^<'
+  - Regex: '^<(d3d|dxgi|wrl|Windows)'
     Priority: 4
+  - Regex: '^<'
+    Priority: 5

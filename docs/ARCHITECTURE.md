@@ -53,8 +53,17 @@ Trois presets :
 - Avertissements à `/W4` avec `/permissive-`, appliqués via la cible interface
   `deuca::compile_flags` pour que le code tiers ramené par vcpkg ne soit jamais
   soumis à notre niveau d'exigence.
-- Le formatage est celui de `.clang-format` (base Microsoft). Passez-le avant
-  d'ouvrir une pull request.
+- Le formatage est celui de `.clang-format` (base Microsoft), vérifié en
+  intégration continue et bloquant. La version est **épinglée à
+  clang-format 23.1.0** : le résultat du formatage varie d'une version à
+  l'autre, et sans épinglage la CI finit par refuser du code correct. Celle
+  livrée avec Visual Studio n'est pas forcément la bonne — installez la même
+  que la CI :
+
+  ```
+  pip install clang-format==23.1.0
+  clang-format -i --style=file src/**/*.cpp src/**/*.hpp tests/*.cpp
+  ```
 - Le code, les commentaires et les messages de commit sont en français. Les
   identifiants restent en anglais, comme les API qu'ils enveloppent.
 - Un commentaire explique le *pourquoi*, jamais le *quoi*. Un commentaire qui
