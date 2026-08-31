@@ -1,0 +1,24 @@
+# Le style Microsoft est celui qui colle le mieux au code Win32 sur lequel
+# ce projet est bâti.
+BasedOnStyle: Microsoft
+Standard: c++20
+ColumnLimit: 110
+IndentWidth: 4
+PointerAlignment: Left
+ReferenceAlignment: Left
+AllowShortFunctionsOnASingleLine: Inline
+AlwaysBreakTemplateDeclarations: Yes
+SeparateDefinitionBlocks: Always
+SortIncludes: CaseInsensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+  # Nos en-têtes d'abord, puis les tierces parties, puis la plateforme,
+  # puis la bibliothèque standard.
+  - Regex: '^"(core|platform|ui|engine)/'
+    Priority: 1
+  - Regex: '^<(imgui|catch2)'
+    Priority: 2
+  - Regex: '^"platform/WindowsLean\.hpp"'
+    Priority: 3
+  - Regex: '^<'
+    Priority: 4
