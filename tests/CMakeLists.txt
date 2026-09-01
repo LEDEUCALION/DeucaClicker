@@ -6,6 +6,7 @@ find_package(Catch2 3 CONFIG REQUIRED)
 add_executable(deuca_tests
     VersionTests.cpp
     WaitingTests.cpp
+    StatisticsTests.cpp
     HighResolutionTimerTests.cpp)
 
 target_link_libraries(deuca_tests PRIVATE

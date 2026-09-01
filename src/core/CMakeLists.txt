@@ -6,6 +6,8 @@ add_library(deuca_core STATIC
     IBlockingSleeper.hpp
     PrecisionWaiter.hpp
     PrecisionWaiter.cpp
+    Statistics.hpp
+    Statistics.cpp
     Version.hpp
     Version.cpp)
 

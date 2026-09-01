@@ -24,6 +24,7 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
 option(DEUCA_BUILD_TESTS "Compiler la suite de tests unitaires" ON)
+option(DEUCA_BUILD_BENCH "Compiler le banc de mesure" ON)
 
 # ---------------------------------------------------------------------------
 # Réglages de compilation partagés
@@ -65,4 +66,12 @@ add_subdirectory(src)
 if(DEUCA_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
+endif()
+
+# Le banc n'est pas enregistré auprès de CTest : mesurer des latences sur un
+# runner partagé ne donnerait que du bruit. Il est compilé en intégration
+# continue pour qu'il ne pourrisse pas, et exécuté à la main sur une machine
+# connue.
+if(DEUCA_BUILD_BENCH)
+    add_subdirectory(bench)
 endif()
