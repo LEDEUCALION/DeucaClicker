@@ -2,6 +2,10 @@
 # qui se trouve ici tourne dans un exécutable console sans session graphique,
 # ce qui est précisément la raison d'être de cette séparation.
 add_library(deuca_core STATIC
+    Waiting.hpp
+    IBlockingSleeper.hpp
+    PrecisionWaiter.hpp
+    PrecisionWaiter.cpp
     Version.hpp
     Version.cpp)
 
