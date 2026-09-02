@@ -45,6 +45,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "DEUCA_BUILD_TESTS": "OFF",
+        "DEUCA_BUILD_BENCH": "OFF",
         "VCPKG_MANIFEST_FEATURES": ""
       }
     }
