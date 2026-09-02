@@ -13,3 +13,10 @@ indent_size = 2
 
 [*.md]
 trim_trailing_whitespace = false
+
+# PowerShell 5.1 lit un fichier sans BOM avec la page de codes ANSI et abime
+# les accents. Le BOM n'est pas une coquetterie ici, c'est ce qui rend les
+# scripts lisibles sur une installation Windows par defaut.
+[*.ps1]
+charset = utf-8-bom
+end_of_line = crlf

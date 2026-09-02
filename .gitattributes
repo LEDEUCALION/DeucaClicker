@@ -13,6 +13,7 @@
 # Visual Studio exige du CRLF sur ces fichiers.
 *.sln    text eol=crlf
 *.vcxproj text eol=crlf
+*.ps1     text eol=crlf
 
 *.png    binary
 *.ico    binary
