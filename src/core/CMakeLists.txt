@@ -8,6 +8,14 @@ add_library(deuca_core STATIC
     PrecisionWaiter.cpp
     Statistics.hpp
     Statistics.cpp
+    ScreenCoordinates.hpp
+    ScreenCoordinates.cpp
+    ClickEvent.hpp
+    ClickPlan.hpp
+    ClickPlan.cpp
+    IInputSink.hpp
+    ClickSequencer.hpp
+    ClickSequencer.cpp
     Version.hpp
     Version.cpp)
 
