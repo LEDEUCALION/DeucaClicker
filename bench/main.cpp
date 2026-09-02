@@ -1,7 +1,9 @@
 #include "core/PrecisionWaiter.hpp"
 #include "core/Statistics.hpp"
 #include "core/Version.hpp"
+#include "platform/CpuTopology.hpp"
 #include "platform/HighResolutionTimer.hpp"
+#include "platform/ThreadTuning.hpp"
 
 #include <algorithm>
 #include <array>
@@ -11,11 +13,12 @@
 #include <vector>
 
 //
-// Mesure le retard au réveil du PrecisionWaiter sur plusieurs cadences.
+// Mesure le retard au réveil du PrecisionWaiter sur plusieurs cadences, sans
+// puis avec les réglages d'ordonnancement.
 //
-// C'est la mesure de référence à prendre avant tout réglage d'ordonnancement :
-// sans elle, on ne pourra jamais montrer qu'une priorité de thread ou MMCSS
-// améliorent quoi que ce soit.
+// Les deux passes d'une même cadence sont enchaînées, jamais menées en
+// campagnes séparées : sinon la comparaison serait attaquable sur la charge de
+// la machine entre les deux mesures.
 //
 // Les chaînes affichées sont volontairement sans accent : la console Windows
 // les rendrait mal, et un rapport de mesure illisible ne vaut pas mieux que
@@ -37,7 +40,8 @@ constexpr std::array kRatesHz{10, 100, 500, 1000, 2000};
 /// distribution ne veut rien dire, et publier un chiffre qui ne veut rien dire
 /// est pire que ne rien publier.
 ///
-/// Le coût est supporté par les cadences lentes : vingt secondes à 10 Hz.
+/// Le coût est supporté par les cadences lentes : vingt secondes à 10 Hz, et
+/// deux fois plus depuis que chaque cadence est mesurée deux fois.
 constexpr std::size_t kMinimumSamples = 200;
 
 /// Tours non mesurés en tête de série, le temps que les caches et le timer se
@@ -49,10 +53,15 @@ constexpr std::size_t kWarmupIterations = 5;
     return std::chrono::duration<double, std::micro>(duration).count();
 }
 
+[[nodiscard]] deuca::Duration periodFor(int rateHz) noexcept
+{
+    return std::chrono::duration_cast<deuca::Duration>(1s) / rateHz;
+}
+
 /// Mesure le retard au réveil pour une cadence donnée.
 [[nodiscard]] std::vector<deuca::Duration> measure(deuca::PrecisionWaiter& waiter, int rateHz)
 {
-    const deuca::Duration period = std::chrono::duration_cast<deuca::Duration>(1s) / rateHz;
+    const deuca::Duration period = periodFor(rateHz);
     const auto planned = std::max<std::size_t>(kMinimumSamples, static_cast<std::size_t>(rateHz));
 
     for (std::size_t i = 0; i < kWarmupIterations; ++i)
@@ -76,7 +85,7 @@ constexpr std::size_t kWarmupIterations = 5;
     return lateness;
 }
 
-void printHeader(const deuca::platform::HighResolutionTimer& timer, const deuca::PrecisionWaiter& waiter)
+void printEnvironment(const deuca::platform::HighResolutionTimer& timer, const deuca::PrecisionWaiter& waiter)
 {
     std::cout << std::format("{} -- banc de mesure d'attente\n\n", deuca::buildBanner());
     std::cout << std::format("Build                  : {}\n", DEUCA_BUILD_TYPE);
@@ -85,24 +94,37 @@ void printHeader(const deuca::platform::HighResolutionTimer& timer, const deuca:
     std::cout << std::format("Granularite du dormeur : {:.1f} us\n", toMicroseconds(timer.granularity()));
     std::cout << std::format("Marge d'attente active : {:.1f} us\n", toMicroseconds(waiter.spinBudget()));
 
+    const std::vector<deuca::platform::CpuCore> cores = deuca::platform::enumerateCores();
+    std::cout << std::format("Coeurs logiques        : {} ({})\n", cores.size(),
+                             deuca::platform::isHomogeneous(cores) ? "homogenes" : "hybrides");
+
+    // Sonde jetable : on veut savoir quels leviers le systeme accepte
+    // reellement avant d'interpreter les chiffres. Le reglage est defait des
+    // la sortie du bloc.
+    {
+        const deuca::platform::ScopedThreadTuning probe;
+        std::cout << std::format("Leviers acceptes       : MMCSS={} priorite={} coeurs={} energie={}\n",
+                                 probe.mmcssActive(), probe.priorityActive(), probe.affinityActive(),
+                                 probe.powerThrottlingDisabled());
+    }
+
     if (std::string_view{DEUCA_BUILD_TYPE} == "Debug")
     {
         std::cout << "\nATTENTION : build Debug. Ces chiffres ne sont pas publiables.\n";
     }
 
-    std::cout << std::format("\n{:>9} {:>11} {:>8} {:>9} {:>9} {:>9} {:>9} {:>9} {:>9}\n", "Cadence",
-                             "Periode", "Echant.", "min", "p50", "p90", "p99", "max", "moyenne");
-    std::cout << std::format("{:->9} {:->11} {:->8} {:->9} {:->9} {:->9} {:->9} {:->9} {:->9}\n", "", "", "",
+    std::cout << std::format("\n{:>9} {:>8} {:>8} {:>9} {:>9} {:>9} {:>9} {:>9} {:>9}\n", "Cadence",
+                             "Reglage", "Echant.", "min", "p50", "p90", "p99", "max", "moyenne");
+    std::cout << std::format("{:->9} {:->8} {:->8} {:->9} {:->9} {:->9} {:->9} {:->9} {:->9}\n", "", "", "",
                              "", "", "", "", "", "");
 }
 
-void printRow(int rateHz, deuca::Duration period, const deuca::Summary& summary)
+void printRow(int rateHz, std::string_view label, const deuca::Summary& summary)
 {
     std::cout << std::format(
-        "{:>6} Hz {:>9.1f}us {:>8} {:>8.1f} {:>8.1f} {:>8.1f} {:>8.1f} {:>8.1f} {:>8.1f}\n", rateHz,
-        toMicroseconds(period), summary.count, toMicroseconds(summary.min), toMicroseconds(summary.p50),
-        toMicroseconds(summary.p90), toMicroseconds(summary.p99), toMicroseconds(summary.max),
-        toMicroseconds(summary.mean));
+        "{:>6} Hz {:>8} {:>8} {:>8.1f} {:>8.1f} {:>8.1f} {:>8.1f} {:>8.1f} {:>8.1f}\n", rateHz, label,
+        summary.count, toMicroseconds(summary.min), toMicroseconds(summary.p50), toMicroseconds(summary.p90),
+        toMicroseconds(summary.p99), toMicroseconds(summary.max), toMicroseconds(summary.mean));
 }
 
 } // namespace
@@ -117,16 +139,30 @@ int main()
     }
 
     deuca::PrecisionWaiter waiter{timer};
-    printHeader(timer, waiter);
+    printEnvironment(timer, waiter);
 
     for (const int rateHz : kRatesHz)
     {
-        const deuca::Duration period = std::chrono::duration_cast<deuca::Duration>(1s) / rateHz;
-        printRow(rateHz, period, deuca::summarize(measure(waiter, rateHz)));
+        const std::vector<deuca::Duration> raw = measure(waiter, rateHz);
+
+        std::vector<deuca::Duration> tuned;
+        {
+            const deuca::platform::ScopedThreadTuning tuning;
+            tuned = measure(waiter, rateHz);
+        }
+
+        // Affichage hors du bloc regle : ecrire sur la sortie standard depuis
+        // un thread a priorite critique n'a aucun interet et fausserait la
+        // mesure suivante.
+        printRow(rateHz, "brut", deuca::summarize(raw));
+        printRow(rateHz, "regle", deuca::summarize(tuned));
     }
 
     std::cout << "\nRetard mesure entre l'echeance demandee et le reveil reel.\n"
-                 "Percentiles par rang le plus proche, sans interpolation.\n";
+                 "Percentiles par rang le plus proche, sans interpolation.\n"
+                 "brut  = aucun reglage d'ordonnancement.\n"
+                 "regle = MMCSS Pro Audio, priorite critique, coeurs performants,\n"
+                 "        sortie du bridage energetique.\n";
 
     return 0;
 }

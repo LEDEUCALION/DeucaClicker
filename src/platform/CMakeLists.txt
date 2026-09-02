@@ -4,6 +4,10 @@ add_library(deuca_platform STATIC
     WindowsLean.hpp
     HighResolutionTimer.hpp
     HighResolutionTimer.cpp
+    CpuTopology.hpp
+    CpuTopology.cpp
+    ThreadTuning.hpp
+    ThreadTuning.cpp
     ProcessSetup.hpp
     ProcessSetup.cpp)
 
@@ -15,6 +19,7 @@ target_link_libraries(deuca_platform
     PUBLIC  deuca::core
     PRIVATE deuca::compile_flags)
 
-target_link_libraries(deuca_platform PUBLIC user32)
+# avrt porte MMCSS, le service d'ordonnancement multimédia.
+target_link_libraries(deuca_platform PUBLIC user32 avrt)
 
 set_target_properties(deuca_platform PROPERTIES FOLDER "libs")

@@ -7,7 +7,8 @@ add_executable(deuca_tests
     VersionTests.cpp
     WaitingTests.cpp
     StatisticsTests.cpp
-    HighResolutionTimerTests.cpp)
+    HighResolutionTimerTests.cpp
+    ThreadTuningTests.cpp)
 
 target_link_libraries(deuca_tests PRIVATE
     deuca::core
