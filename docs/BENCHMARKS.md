@@ -45,11 +45,14 @@ côté. Une mesure de latence sans son contexte n'est pas une mesure.
 
 ## Résultats
 
-### Campagne de référence — 1er septembre 2026
+### Campagne du 2 septembre 2026 — avant / après réglage
 
-Mesure prise **avant tout réglage d'ordonnancement**. Elle sert de point de
-comparaison aux branches qui toucheront à la priorité de thread, à MMCSS et au
-bridage énergétique.
+Chaque cadence est mesurée deux fois dans la **même exécution**, les deux passes
+enchaînées : sans réglage d'ordonnancement, puis avec. Deux campagnes séparées
+seraient attaquables sur la charge de la machine entre les deux.
+
+Cette campagne remplace celle du 1er septembre, menée avec un minimum de vingt
+échantillons dont les percentiles ne voulaient rien dire.
 
 | | |
 |---|---|
@@ -59,49 +62,75 @@ bridage énergétique.
 | Build | `x64-release` (RelWithDebInfo), CRT statique |
 | Timer | haute résolution, granularité annoncée 500 µs |
 | Marge d'attente active | 500 µs (relevée depuis 300 µs par la granularité) |
+| Cœurs logiques | 12, homogènes |
+| Leviers acceptés | MMCSS, priorité, sélection de cœurs, refus du bridage : tous |
 | Alimentation | secteur |
 
 Retard au réveil, en microsecondes :
 
-| Cadence | Période | Échant. | min | p50 | p90 | p99 | max | moyenne |
-|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 10 Hz | 100 000 µs | 20 | 0,0 | 0,0 | 283,9 | 473,8 | 473,8 | 74,5 |
-| 100 Hz | 10 000 µs | 100 | 0,0 | 0,0 | 173,9 | 442,3 | 505,0 | 53,2 |
-| 500 Hz | 2 000 µs | 500 | 0,0 | 0,0 | 0,0 | 110,3 | 1 851,5 | 8,0 |
-| 1000 Hz | 1 000 µs | 1000 | 0,0 | 0,0 | 0,0 | 180,1 | 1 040,7 | 7,8 |
-| 2000 Hz | 500 µs | 2000 | 0,0 | 0,0 | 0,0 | 0,0 | 50,9 | 0,1 |
+| Cadence | Réglage | Échant. | min | p50 | p90 | p99 | max | moyenne |
+|---:|:--|---:|---:|---:|---:|---:|---:|---:|
+| 10 Hz | brut | 200 | 0,0 | 0,0 | 62,7 | 163,8 | 215,5 | 15,0 |
+| 10 Hz | réglé | 200 | 0,0 | 0,0 | 54,8 | 253,8 | 318,9 | 17,3 |
+| 100 Hz | brut | 200 | 0,0 | 0,0 | 69,5 | 357,3 | 384,9 | 21,3 |
+| 100 Hz | réglé | 200 | 0,0 | 0,0 | 64,7 | 385,4 | 598,9 | 20,3 |
+| 500 Hz | brut | 500 | 0,0 | 0,0 | 0,0 | 119,8 | 730,4 | 6,5 |
+| 500 Hz | réglé | 500 | 0,0 | 0,0 | 0,0 | 101,6 | 340,5 | 4,0 |
+| 1000 Hz | brut | 1000 | 0,0 | 0,0 | 0,0 | 275,7 | 1 103,6 | 11,3 |
+| 1000 Hz | réglé | 1000 | 0,0 | 0,0 | 0,0 | 150,4 | 936,3 | 7,0 |
+| 2000 Hz | brut | 2000 | 0,0 | 0,0 | 0,0 | 0,0 | 36,7 | 0,0 |
+| 2000 Hz | réglé | 2000 | 0,0 | 0,0 | 0,0 | 0,0 | 18,0 | 0,0 |
 
 ### Lecture
 
-**L'attente active tient sa promesse.** Le retard médian est de 0,0 µs à toutes
-les cadences : la boucle de spin sort dans le même top d'horloge que l'échéance,
-soit moins de 100 ns sur un QPC à 10 MHz. Ce n'est pas là que se joue l'erreur.
+**L'attente active tient sa promesse.** Le retard médian est de 0,0 µs partout :
+la boucle de spin sort dans le même top d'horloge que l'échéance, soit moins de
+100 ns sur un QPC à 10 MHz. Ce n'est pas là que se joue l'erreur.
 
 **Toute la queue de distribution vient de l'attente bloquante.** À 2000 Hz, la
 période vaut exactement la marge d'attente active : `blockingPortion` renvoie
-zéro, le waiter ne bloque jamais, et le maximum s'effondre à 51 µs pour une
-moyenne de 0,1 µs. Partout où le timer est sollicité, la queue réapparaît —
-jusqu'à 1,85 ms à 500 Hz, soit près d'une période entière manquée.
+zéro, le waiter ne bloque jamais, et le maximum tombe à quelques dizaines de
+microsecondes. Partout où le timer est sollicité, la queue réapparaît.
 
-Autrement dit, l'erreur n'est pas dans la façon dont on attend les dernières
-microsecondes, mais dans le délai de reprise du thread après le déclenchement du
-timer. C'est précisément ce sur quoi agissent la priorité de thread, MMCSS et la
-désactivation du bridage énergétique — et sur une puce mobile 15 W, où le
-gouverneur de fréquence est le plus intrusif, la marge de progression devrait
-être visible.
+**Le réglage d'ordonnancement gagne à partir de 500 Hz, et nulle part ailleurs.**
+
+| Cadence | p99 | max | moyenne |
+|---:|---:|---:|---:|
+| 500 Hz | −15 % | −53 % | −38 % |
+| 1000 Hz | −45 % | −15 % | −38 % |
+| 2000 Hz | — | −51 % | — |
+
+En dessous, aucun gain n'est démontrable : à 10 et 100 Hz les chiffres réglés
+sont même légèrement moins bons que les bruts. Voir les réserves.
+
+**Ce résultat est cohérent avec ce qui compte réellement.** Rapporté à la
+période, le retard maximal réglé vaut 0,3 % à 10 Hz, 6 % à 100 Hz, 17 % à
+500 Hz et 94 % à 1000 Hz. Aux cadences lentes, la queue est sans conséquence :
+un autoclicker à 10 Hz dispose de 100 ms de marge et trois cents microsecondes
+n'y changent rien. Le réglage améliore donc exactement là où l'erreur devient
+significative.
+
+**Une limite reste entière.** À 1000 Hz, le retard maximal réglé approche encore
+une période entière. L'ordonnancement seul ne suffit pas à cette cadence, et la
+piste à explorer n'est pas de pousser la priorité plus loin mais d'élargir la
+marge d'attente active : à 2000 Hz, où le waiter ne bloque jamais, le maximum
+est cinquante fois plus faible. Un balayage de la marge de spin est le
+prochain protocole à mener.
 
 ### Réserves
 
-- **La ligne 10 Hz ne vaut rien en percentile.** Vingt échantillons : le rang le
-  plus proche fait pointer p99 sur le dernier élément, donc sur le maximum.
-  C'est un défaut du banc, pas de la mesure ; le minimum d'échantillons a été
-  porté à 200 pour les campagnes suivantes. La ligne 100 Hz est à lire avec la
-  même prudence.
-- Les lignes 500, 1000 et 2000 Hz reposent sur 500 à 2000 échantillons et sont
-  exploitables.
+- **Les lignes 10 et 100 Hz reposent sur 200 échantillons.** Le p99 y est porté
+  par deux mesures : l'écart observé entre brut et réglé est du même ordre que
+  le bruit que cette taille d'échantillon autorise. Il ne faut pas y lire une
+  dégradation, seulement une absence de gain démontrable.
+- Les lignes 500, 1000 et 2000 Hz reposent sur 500 à 2000 échantillons ; leurs
+  écarts sont exploitables.
 - La campagne a été menée avec **certains services antivirus temporairement
   désactivés** — voir la note ci-dessous. La charge de fond du poste n'était pas
   contrôlée.
+- La sélection de cœurs performants est sans effet sur ce processeur : douze
+  cœurs logiques d'une seule classe d'efficacité. Son intérêt ne se mesurera que
+  sur une architecture hybride.
 - Machine portable sur secteur. Les mêmes mesures sur batterie donneront presque
   certainement une queue plus lourde.
 
