@@ -8,6 +8,10 @@ add_library(deuca_platform STATIC
     CpuTopology.cpp
     ThreadTuning.hpp
     ThreadTuning.cpp
+    Hotkey.hpp
+    Hotkey.cpp
+    HotkeyService.hpp
+    HotkeyService.cpp
     SendInputSink.hpp
     SendInputSink.cpp
     ProcessSetup.hpp

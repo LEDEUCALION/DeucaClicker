@@ -12,7 +12,8 @@ add_executable(deuca_tests
     ScreenCoordinatesTests.cpp
     ClickSequencerTests.cpp
     SendInputSinkTests.cpp
-    ClickEngineTests.cpp)
+    ClickEngineTests.cpp
+    HotkeyTests.cpp)
 
 target_link_libraries(deuca_tests PRIVATE
     deuca::core
