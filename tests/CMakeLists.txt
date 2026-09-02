@@ -11,11 +11,13 @@ add_executable(deuca_tests
     ThreadTuningTests.cpp
     ScreenCoordinatesTests.cpp
     ClickSequencerTests.cpp
-    SendInputSinkTests.cpp)
+    SendInputSinkTests.cpp
+    ClickEngineTests.cpp)
 
 target_link_libraries(deuca_tests PRIVATE
     deuca::core
     deuca::platform
+    deuca::engine
     deuca::compile_flags
     Catch2::Catch2WithMain)
 
