@@ -28,6 +28,16 @@ cesse mystérieusement de compiler.
 
 ## Compilation
 
+CMake, Ninja et vcpkg sont livrés **à l'intérieur** de Visual Studio et ne sont
+pas sur le PATH système. Préparez la session d'abord — le point initial est
+obligatoire, sans lui l'environnement disparaît en sortant du script :
+
+```
+. .\scripts\dev-env.ps1
+```
+
+Puis :
+
 ```
 cmake --preset x64-debug
 cmake --build --preset x64-debug
@@ -35,8 +45,8 @@ ctest --preset x64-debug
 ```
 
 Les dépendances viennent de vcpkg en mode manifeste (`vcpkg.json`) ; le fichier
-de chaîne d'outils est récupéré depuis `VCPKG_ROOT`, que Visual Studio
-renseigne pour vous. Le triplet `x64-windows-static` et un runtime C statique
+de chaîne d'outils est récupéré depuis `VCPKG_ROOT`, que `dev-env.ps1`
+renseigne. Le triplet `x64-windows-static` et un runtime C statique
 donnent un unique `.exe` autonome, sans redistribuable à installer.
 
 Trois presets :
@@ -55,14 +65,14 @@ Trois presets :
   soumis à notre niveau d'exigence.
 - Le formatage est celui de `.clang-format` (base Microsoft), vérifié en
   intégration continue et bloquant. La version est **épinglée à
-  clang-format 23.1.0** : le résultat du formatage varie d'une version à
-  l'autre, et sans épinglage la CI finit par refuser du code correct. Celle
-  livrée avec Visual Studio n'est pas forcément la bonne — installez la même
-  que la CI :
+  clang-format 23.1.0** : le résultat varie d'une version à l'autre, et sans
+  épinglage la CI finit par refuser du code correct. Celle livrée avec Visual
+  Studio n'est pas forcément la bonne, alors laissez le script s'en charger —
+  il installe la version attendue si elle manque :
 
   ```
-  pip install clang-format==23.1.0
-  clang-format -i --style=file src/**/*.cpp src/**/*.hpp tests/*.cpp
+  .\scripts\format.ps1           # corrige
+  .\scripts\format.ps1 -Check    # verifie, comme la CI
   ```
 - Le code, les commentaires et les messages de commit sont en français. Les
   identifiants restent en anglais, comme les API qu'ils enveloppent.
