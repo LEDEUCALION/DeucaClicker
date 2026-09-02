@@ -8,6 +8,8 @@ add_library(deuca_platform STATIC
     CpuTopology.cpp
     ThreadTuning.hpp
     ThreadTuning.cpp
+    SendInputSink.hpp
+    SendInputSink.cpp
     ProcessSetup.hpp
     ProcessSetup.cpp)
 
