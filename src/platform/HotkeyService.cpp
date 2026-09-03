@@ -66,9 +66,16 @@ struct HotkeyService::Impl
     /// L'action voyage avec la demande. C'est ce qui permet à la table de
     /// n'être touchée que par le fil d'écoute : si l'appelant l'y insérait
     /// lui-même, deux fils écriraient dans la même structure sans verrou.
+    enum class Action
+    {
+        Add,
+        Remove,
+        RebindPanic,
+    };
+
     struct Request
     {
-        bool add{true};
+        Action action{Action::Add};
         int id{0};
         Hotkey hotkey{};
         HotkeyTable::Callback callback;
@@ -76,8 +83,13 @@ struct HotkeyService::Impl
     };
 
     HotkeyTable table;
-    Hotkey panicHotkey{};
     HotkeyTable::Callback panicCallback;
+
+    // Écrit par le fil d'écoute lors d'une reconfiguration, lu par l'interface
+    // pour afficher la combinaison courante. Atomique plutôt que sous verrou :
+    // huit octets triviallement copiables, donc sans verrou sur toute machine
+    // que ce projet cible.
+    std::atomic<Hotkey> panicHotkey{};
 
     std::atomic<bool> running{false};
     std::atomic<bool> panicActive{false};
@@ -93,6 +105,7 @@ struct HotkeyService::Impl
     void run(std::stop_token token);
     void drainRequests();
     [[nodiscard]] bool submit(Request&& request);
+    [[nodiscard]] bool rebindPanic(Hotkey hotkey);
 
     static LRESULT CALLBACK windowProc(HWND, UINT, WPARAM, LPARAM);
 };
@@ -141,26 +154,56 @@ void HotkeyService::Impl::drainRequests()
         }
 
         bool succeeded = false;
-        if (request.add)
+        switch (request.action)
         {
+        case Action::Add:
             succeeded = ::RegisterHotKey(window, request.id, toWin32Modifiers(request.hotkey.modifiers),
                                          request.hotkey.virtualKey) != FALSE;
             if (succeeded)
             {
                 table.add(request.id, std::move(request.callback));
             }
-        }
-        else
-        {
+            break;
+
+        case Action::Remove:
             succeeded = ::UnregisterHotKey(window, request.id) != FALSE;
             if (succeeded)
             {
                 table.remove(request.id);
             }
+            break;
+
+        case Action::RebindPanic:
+            succeeded = rebindPanic(request.hotkey);
+            break;
         }
 
         request.result.set_value(succeeded);
     }
+}
+
+bool HotkeyService::Impl::rebindPanic(Hotkey hotkey)
+{
+    const Hotkey previous = panicHotkey.load(std::memory_order_acquire);
+
+    ::UnregisterHotKey(window, kPanicHotkeyId);
+
+    if (::RegisterHotKey(window, kPanicHotkeyId, toWin32Modifiers(hotkey.modifiers), hotkey.virtualKey) !=
+        FALSE)
+    {
+        panicHotkey.store(hotkey, std::memory_order_release);
+        panicActive.store(true, std::memory_order_release);
+        return true;
+    }
+
+    // La nouvelle combinaison est refusée : on remet l'ancienne. Laisser
+    // l'utilisateur sans arrêt d'urgence parce qu'il a tenté une touche déjà
+    // prise serait le pire résultat possible.
+    const bool restored = ::RegisterHotKey(window, kPanicHotkeyId, toWin32Modifiers(previous.modifiers),
+                                           previous.virtualKey) != FALSE;
+    panicActive.store(restored, std::memory_order_release);
+
+    return false;
 }
 
 bool HotkeyService::Impl::submit(Request&& request)
@@ -221,8 +264,9 @@ void HotkeyService::Impl::run(std::stop_token token)
 
     if (panicCallback)
     {
-        const bool granted = ::RegisterHotKey(window, kPanicHotkeyId, toWin32Modifiers(panicHotkey.modifiers),
-                                              panicHotkey.virtualKey) != FALSE;
+        const Hotkey panic = panicHotkey.load(std::memory_order_acquire);
+        const bool granted = ::RegisterHotKey(window, kPanicHotkeyId, toWin32Modifiers(panic.modifiers),
+                                              panic.virtualKey) != FALSE;
         if (granted)
         {
             table.add(kPanicHotkeyId, panicCallback);
@@ -260,7 +304,7 @@ void HotkeyService::Impl::run(std::stop_token token)
 HotkeyService::HotkeyService(Hotkey panicHotkey, HotkeyTable::Callback onPanic)
     : m_impl{std::make_unique<Impl>()}
 {
-    m_impl->panicHotkey = panicHotkey;
+    m_impl->panicHotkey.store(panicHotkey, std::memory_order_release);
     m_impl->panicCallback = std::move(onPanic);
 
     m_impl->worker = std::jthread{[impl = m_impl.get()](std::stop_token token) { impl->run(token); }};
@@ -302,6 +346,26 @@ bool HotkeyService::panicHotkeyActive() const noexcept
     return m_impl->panicActive.load(std::memory_order_acquire);
 }
 
+bool HotkeyService::rebindPanicHotkey(Hotkey hotkey)
+{
+    if (hotkey.virtualKey == 0)
+    {
+        return false;
+    }
+
+    Impl::Request request;
+    request.action = Impl::Action::RebindPanic;
+    request.id = kPanicHotkeyId;
+    request.hotkey = hotkey;
+
+    return m_impl->submit(std::move(request));
+}
+
+Hotkey HotkeyService::panicHotkey() const noexcept
+{
+    return m_impl->panicHotkey.load(std::memory_order_acquire);
+}
+
 std::optional<int> HotkeyService::registerHotkey(Hotkey hotkey, HotkeyTable::Callback callback)
 {
     if (!callback)
@@ -312,7 +376,7 @@ std::optional<int> HotkeyService::registerHotkey(Hotkey hotkey, HotkeyTable::Cal
     const int id = m_impl->nextId.fetch_add(1, std::memory_order_acq_rel);
 
     Impl::Request request;
-    request.add = true;
+    request.action = Impl::Action::Add;
     request.id = id;
     request.hotkey = hotkey;
     request.callback = std::move(callback);
@@ -335,7 +399,7 @@ bool HotkeyService::unregisterHotkey(int id)
     }
 
     Impl::Request request;
-    request.add = false;
+    request.action = Impl::Action::Remove;
     request.id = id;
 
     return m_impl->submit(std::move(request));

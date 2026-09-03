@@ -26,6 +26,28 @@ ClickPlan clampPlan(ClickPlan plan, const EngineConfig& config, std::size_t maxB
     return plan;
 }
 
+StartRefusal evaluateStart(bool panicHotkeyActive, const ClickPlan& plan, bool alreadyRunning) noexcept
+{
+    if (alreadyRunning)
+    {
+        return StartRefusal::AlreadyRunning;
+    }
+
+    // Vérifié avant la cadence : c'est la condition de sûreté, elle prime sur
+    // la condition de bon sens.
+    if (!panicHotkeyActive)
+    {
+        return StartRefusal::NoPanicHotkey;
+    }
+
+    if (burstPeriod(plan) == Duration::zero())
+    {
+        return StartRefusal::InvalidRate;
+    }
+
+    return StartRefusal::None;
+}
+
 ClickEngine::ClickEngine(IInputSink& sink, IBlockingSleeper& sleeper, EngineConfig config)
     : m_sink{&sink}, m_sleeper{&sleeper}, m_config{config}
 {

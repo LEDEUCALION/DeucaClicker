@@ -8,7 +8,9 @@ add_library(deuca_ui STATIC
     ImGuiHost.hpp
     ImGuiHost.cpp
     MainPanel.hpp
-    MainPanel.cpp)
+    MainPanel.cpp
+    AppController.hpp
+    AppController.cpp)
 
 add_library(deuca::ui ALIAS deuca_ui)
 
@@ -19,6 +21,7 @@ target_include_directories(deuca_ui PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_link_libraries(deuca_ui
     PUBLIC  deuca::core
     PRIVATE deuca::platform
+            deuca::engine
             deuca::compile_flags
             imgui::imgui
             d3d11

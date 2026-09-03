@@ -50,4 +50,19 @@ struct ClickPlan
 ///         que possible ».
 [[nodiscard]] Duration burstPeriod(const ClickPlan& plan) noexcept;
 
+/// Convertit un intervalle entre clics en cadence.
+///
+/// Les deux expressions du même réglage coexistent parce qu'aucune ne convient
+/// à tout le monde : « toutes les 30 ms » se lit mieux pour une automatisation
+/// lente, « 500 clics par seconde » pour une rafale. L'interface propose les
+/// deux et se sert de ces conversions pour les tenir d'accord.
+///
+/// @return zéro si l'intervalle est nul ou négatif.
+[[nodiscard]] double clicksPerSecondFromInterval(Duration interval) noexcept;
+
+/// Convertit une cadence en intervalle entre clics.
+///
+/// @return zéro si la cadence est nulle ou négative.
+[[nodiscard]] Duration intervalFromClicksPerSecond(double clicksPerSecond) noexcept;
+
 } // namespace deuca
