@@ -196,6 +196,10 @@ TEST_CASE("L'homme mort arrete une session oubliee", "[engine]")
 
     engine.start(plan);
 
+    // On attend d'abord une preuve que la session a bien demarre. Guetter
+    // directement l'arret serait vrai des la premiere evaluation, avant meme
+    // que le fil ait pose son drapeau : le test passerait sans rien prouver.
+    REQUIRE(waitFor([&] { return sink.submissions() > 0; }, deuca::Duration{3s}));
     REQUIRE(waitFor([&] { return !engine.isRunning(); }, deuca::Duration{3s}));
 }
 
@@ -297,4 +301,64 @@ TEST_CASE("Une session deja en cours est signalee avant tout le reste", "[engine
     // Meme avec un plan invalide et sans arret d'urgence : dire « ca tourne
     // deja » est le motif le plus utile a l'utilisateur.
     REQUIRE(deuca::evaluateStart(false, plan, true) == deuca::StartRefusal::AlreadyRunning);
+}
+
+TEST_CASE("Le lot est ramene a ce que le puits avale en double clic", "[engine]")
+{
+    const deuca::EngineConfig config;
+
+    deuca::ClickPlan plan;
+    plan.style = deuca::ClickStyle::Double;
+    plan.burstSize = 100;
+
+    // Quatre evenements par activation en double clic : dix evenements de
+    // capacite n'en laissent passer que deux.
+    const deuca::ClickPlan clamped = deuca::clampPlan(plan, config, 10);
+    REQUIRE(clamped.burstSize == 2);
+    REQUIRE(deuca::eventsPerBurst(clamped) <= 10);
+}
+
+TEST_CASE("La limite de repetition arrete la session", "[engine]")
+{
+    FakeSink sink;
+    RealSleeper sleeper;
+    deuca::ClickEngine engine{sink, sleeper};
+
+    deuca::ClickPlan plan;
+    plan.clicksPerSecond = 500.0;
+    plan.burstSize = 1;
+    plan.repeatLimit = 5;
+
+    engine.start(plan);
+
+    // Cinq activations, donc cinq lots d'un clic, donc cinq soumissions. On
+    // attend d'abord de les voir arriver, puis on laisse passer du temps pour
+    // verifier que rien ne continue : c'est l'arret qui est teste, pas le
+    // demarrage.
+    REQUIRE(waitFor([&] { return sink.submissions() >= 5; }, deuca::Duration{3s}));
+    std::this_thread::sleep_for(150ms);
+    REQUIRE(sink.submissions() == 5);
+    REQUIRE_FALSE(engine.isRunning());
+}
+
+TEST_CASE("La limite de repetition n'est jamais depassee par le groupement", "[engine]")
+{
+    FakeSink sink;
+    RealSleeper sleeper;
+    deuca::ClickEngine engine{sink, sleeper};
+
+    deuca::ClickPlan plan;
+    plan.clicksPerSecond = 500.0;
+    plan.burstSize = 8;
+    plan.repeatLimit = 10;
+
+    engine.start(plan);
+
+    // Dix activations avec des lots de huit : un lot plein puis un lot reduit a
+    // deux. Un moteur naif en aurait produit seize.
+    REQUIRE(waitFor([&] { return engine.snapshot().clicksEmitted >= 10; }, deuca::Duration{3s}));
+    std::this_thread::sleep_for(150ms);
+
+    REQUIRE(engine.snapshot().clicksEmitted == 10);
+    REQUIRE(sink.lastSize() == 4);
 }

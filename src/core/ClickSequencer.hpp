@@ -24,11 +24,21 @@ class ClickSequencer
 public:
     explicit ClickSequencer(ClickPlan plan) noexcept;
 
-    /// Remplit le tampon avec un lot complet.
+    /// Aucune limite d'activations : la valeur par défaut de fillBurst.
+    static constexpr std::size_t kNoLimit = static_cast<std::size_t>(-1);
+
+    /// Remplit le tampon avec un lot.
+    ///
+    /// @param maxActivations plafond d'activations pour ce lot. Sert au dernier
+    ///        lot d'une répétition limitée : sans lui, un groupement de trente-
+    ///        deux clics et une limite de cent en produiraient cent
+    ///        vingt-huit. Dépasser en silence une limite que l'utilisateur a
+    ///        saisie est le genre de détail qui décrédibilise un outil.
     ///
     /// @return le nombre d'événements écrits, ou zéro si le tampon est trop
-    ///         petit — un lot tronqué laisserait un bouton enfoncé.
-    std::size_t fillBurst(std::span<ClickEvent> buffer) noexcept;
+    ///         petit — un lot tronqué laisserait un bouton enfoncé — ou si le
+    ///         plafond est nul.
+    std::size_t fillBurst(std::span<ClickEvent> buffer, std::size_t maxActivations = kNoLimit) noexcept;
 
     /// Nombre d'événements qu'un lot occupera.
     [[nodiscard]] std::size_t eventsPerBurst() const noexcept;

@@ -18,10 +18,12 @@ ClickPlan clampPlan(ClickPlan plan, const EngineConfig& config, std::size_t maxB
 
     plan.burstSize = std::max<std::size_t>(1, plan.burstSize);
 
-    // Un lot doit tenir en entier dans le puits : deux événements par clic, et
-    // pas de lot tronqué qui laisserait un bouton enfoncé.
-    const std::size_t maxClicks = std::max<std::size_t>(1, maxBatchSize / 2);
-    plan.burstSize = std::min(plan.burstSize, maxClicks);
+    // Un lot doit tenir en entier dans le puits, sans quoi il serait tronqué et
+    // laisserait un bouton enfoncé. Une activation coûte deux événements par
+    // couple appui-relâchement, et un double-clic en compte deux.
+    const std::size_t perActivation = pressesPerActivation(plan.style) * 2;
+    const std::size_t maxActivations = std::max<std::size_t>(1, maxBatchSize / perActivation);
+    plan.burstSize = std::min(plan.burstSize, maxActivations);
 
     return plan;
 }
@@ -132,10 +134,21 @@ void ClickEngine::run(std::stop_token token, ClickPlan plan)
     const Timestamp startedAt = Clock::now();
     Timestamp deadline = startedAt;
 
+    // Nombre d'événements qu'une activation occupe, pour retrouver le compte
+    // d'activations à partir du nombre d'événements écrits.
+    const std::size_t eventsPerActivation = pressesPerActivation(plan.style) * 2;
+    std::uint64_t emitted = 0;
+
     m_running.store(true, std::memory_order_relaxed);
 
     while (!token.stop_requested())
     {
+        // Limite de répétition atteinte : la session s'arrête d'elle-même.
+        if (plan.repeatLimit > 0 && emitted >= plan.repeatLimit)
+        {
+            break;
+        }
+
         // Homme mort : une session oubliée en marche s'arrête d'elle-même.
         if (m_config.maxRunDuration > Duration::zero() && Clock::now() - startedAt >= m_config.maxRunDuration)
         {
@@ -153,11 +166,23 @@ void ClickEngine::run(std::stop_token token, ClickPlan plan)
             break;
         }
 
-        const std::size_t written = sequencer.fillBurst(burst);
+        // Dernier lot d'une répétition limitée : on demande au séquenceur de ne
+        // produire que ce qui reste, plutôt que de dépasser en silence une
+        // limite que l'utilisateur a saisie.
+        std::size_t allowed = ClickSequencer::kNoLimit;
+        if (plan.repeatLimit > 0)
+        {
+            const std::uint64_t remaining = plan.repeatLimit - emitted;
+            allowed = static_cast<std::size_t>(std::min<std::uint64_t>(remaining, plan.burstSize));
+        }
+
+        const std::size_t written = sequencer.fillBurst(burst, allowed);
         if (written == 0)
         {
             break;
         }
+
+        emitted += written / eventsPerActivation;
 
         const std::size_t accepted = m_sink->submit(std::span<const ClickEvent>{burst.data(), written});
 

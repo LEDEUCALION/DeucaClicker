@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <array>
 #include <cfloat>
+#include <climits>
+#include <cstdint>
 #include <string>
 
 namespace deuca::ui
@@ -139,6 +141,20 @@ void drawClickingSection(AppController& controller)
         ImGui::EndCombo();
     }
 
+    const bool isDouble = plan.style == ClickStyle::Double;
+    if (ImGui::BeginCombo("Type", isDouble ? "Double clic" : "Clic simple"))
+    {
+        if (ImGui::Selectable("Clic simple", !isDouble))
+        {
+            plan.style = ClickStyle::Single;
+        }
+        if (ImGui::Selectable("Double clic", isDouble))
+        {
+            plan.style = ClickStyle::Double;
+        }
+        ImGui::EndCombo();
+    }
+
     ImGui::SeparatorText("Intervalle entre clics");
 
     IntervalFields& interval = controller.interval();
@@ -165,7 +181,13 @@ void drawClickingSection(AppController& controller)
         controller.applyInterval();
     }
 
-    ImGui::Text("Soit %.1f clics par seconde", plan.clicksPerSecond);
+    ImGui::Text("Soit %.1f %s par seconde", plan.clicksPerSecond,
+                plan.style == ClickStyle::Double ? "doubles-clics" : "clics");
+
+    if (plan.style == ClickStyle::Double)
+    {
+        ImGui::TextDisabled("Soit %.1f clics physiques par seconde.", plan.clicksPerSecond * 2.0);
+    }
 
     const auto effectiveMs =
         std::chrono::duration<double, std::milli>{controller.effectiveInterval()}.count();
@@ -181,6 +203,34 @@ void drawClickingSection(AppController& controller)
 
     ImGui::TextDisabled("Un lot est insere d'un bloc, sans qu'un mouvement reel");
     ImGui::TextDisabled("puisse s'y glisser. C'est le levier de debit.");
+
+    ImGui::SeparatorText("Repetition");
+
+    bool limited = plan.repeatLimit > 0;
+    if (ImGui::RadioButton("Jusqu'a l'arret", !limited))
+    {
+        plan.repeatLimit = 0;
+        limited = false;
+    }
+
+    if (ImGui::RadioButton("Un nombre de fois", limited))
+    {
+        // Une valeur de depart plutot que zero : passer sur ce mode avec une
+        // limite nulle ferait un moteur qui refuse de demarrer sans raison
+        // visible.
+        plan.repeatLimit = plan.repeatLimit > 0 ? plan.repeatLimit : 100;
+        limited = true;
+    }
+
+    ImGui::BeginDisabled(!limited);
+    int repeats = static_cast<int>(std::min<std::uint64_t>(plan.repeatLimit, INT_MAX));
+    ImGui::PushItemWidth(120.0f);
+    if (ImGui::InputInt("Repetitions", &repeats, 1, 100) && limited)
+    {
+        plan.repeatLimit = static_cast<std::uint64_t>(std::max(1, repeats));
+    }
+    ImGui::PopItemWidth();
+    ImGui::EndDisabled();
 }
 
 void drawTargetsSection(AppController& controller)
