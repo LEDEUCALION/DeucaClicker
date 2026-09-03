@@ -42,6 +42,32 @@ struct EngineConfig
 [[nodiscard]] ClickPlan clampPlan(ClickPlan plan, const EngineConfig& config,
                                   std::size_t maxBatchSize) noexcept;
 
+/// Pourquoi un démarrage est refusé.
+enum class StartRefusal
+{
+    None,
+    /// Aucun raccourci d'arrêt d'urgence n'est en place.
+    NoPanicHotkey,
+    /// Cadence nulle, négative, ou intervalle inexploitable.
+    InvalidRate,
+    /// Une session tourne déjà.
+    AlreadyRunning,
+};
+
+/// Décide si une session peut démarrer.
+///
+/// Fonction libre et sans état : la règle de sûreté la plus importante du
+/// projet ne doit pas dépendre de l'état d'une interface graphique pour être
+/// vérifiable.
+///
+/// Le refus en l'absence de raccourci d'arrêt d'urgence n'est pas une
+/// précaution excessive. Un autoclicker lancé sans moyen de l'arrêter au
+/// clavier ne se rattrape qu'en atteignant son bouton d'arrêt à la souris —
+/// avec une souris qui clique toute seule plusieurs centaines de fois par
+/// seconde.
+[[nodiscard]] StartRefusal evaluateStart(bool panicHotkeyActive, const ClickPlan& plan,
+                                         bool alreadyRunning) noexcept;
+
 /// Compteurs publiés par le moteur.
 ///
 /// Lus champ par champ, sans verrou : ce n'est **pas** un instantané cohérent,

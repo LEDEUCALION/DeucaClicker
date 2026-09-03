@@ -1,15 +1,18 @@
 #include "platform/WindowsLean.hpp"
 
 #include "platform/ProcessSetup.hpp"
+#include "ui/AppController.hpp"
 #include "ui/ImGuiHost.hpp"
 #include "ui/MainPanel.hpp"
 
 namespace
 {
 
-/// Durée d'attente pendant que la fenêtre est réduite, en millisecondes. Assez
-/// longue pour ne pas consommer un cœur sur une fenêtre invisible, assez courte
-/// pour que la restauration paraisse instantanée.
+/// Durée d'attente pendant que la fenêtre est réduite, en millisecondes.
+///
+/// La cadence de clic ne dépend pas de cette boucle : elle tourne sur son
+/// propre fil, à sa propre priorité. Ralentir l'affichage n'a donc aucun effet
+/// sur ce que fait le moteur.
 constexpr DWORD kIdleSleepMs = 16;
 
 } // namespace
@@ -28,6 +31,12 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int)
         return 1;
     }
 
+    // Construit après la fenêtre : le service de raccourcis démarre son fil dès
+    // sa construction, et rien ne doit pouvoir déclencher un clic avant que
+    // l'interface soit là pour le montrer.
+    deuca::ui::AppController controller;
+    deuca::ui::PanelState panelState;
+
     while (host.pumpMessages())
     {
         if (!host.beginFrame())
@@ -36,7 +45,7 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int)
             continue;
         }
 
-        deuca::ui::drawMainPanel();
+        deuca::ui::drawMainPanel(controller, panelState);
         host.endFrame();
     }
 

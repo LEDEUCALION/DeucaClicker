@@ -50,6 +50,21 @@ public:
     /// d'urgence, il ne faut rien lancer.
     [[nodiscard]] bool panicHotkeyActive() const noexcept;
 
+    /// Change la combinaison de l'arrêt d'urgence.
+    ///
+    /// Reconfigurable n'est pas désactivable : l'opération est atomique du
+    /// point de vue de l'utilisateur. L'ancienne combinaison est retirée, la
+    /// nouvelle tentée, et si le système la refuse — une autre application la
+    /// détient déjà — l'ancienne est remise en place. Il n'existe aucun instant
+    /// observable où l'arrêt d'urgence serait absent.
+    ///
+    /// @return false si la nouvelle combinaison a été refusée. L'ancienne est
+    ///         alors toujours active.
+    bool rebindPanicHotkey(Hotkey hotkey);
+
+    /// Combinaison actuellement affectée à l'arrêt d'urgence.
+    [[nodiscard]] Hotkey panicHotkey() const noexcept;
+
     /// Enregistre un raccourci supplémentaire.
     ///
     /// Synchrone : l'enregistrement est effectué sur le fil du service, qui est

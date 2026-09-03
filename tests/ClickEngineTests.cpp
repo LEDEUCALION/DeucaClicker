@@ -261,3 +261,40 @@ TEST_CASE("La destruction arrete le moteur en marche", "[engine]")
     // fil plutot que de laisser le programme se terminer avec un thread vivant.
     SUCCEED();
 }
+
+TEST_CASE("Sans arret d'urgence, le demarrage est refuse", "[engine][safety]")
+{
+    deuca::ClickPlan plan;
+    plan.clicksPerSecond = 10.0;
+
+    // La regle de surete la plus importante du projet. Un autoclicker lance
+    // sans moyen de l'arreter au clavier ne se rattrape qu'a la souris, avec
+    // une souris qui clique toute seule.
+    REQUIRE(deuca::evaluateStart(false, plan, false) == deuca::StartRefusal::NoPanicHotkey);
+}
+
+TEST_CASE("Avec arret d'urgence et cadence valide, le demarrage est autorise", "[engine][safety]")
+{
+    deuca::ClickPlan plan;
+    plan.clicksPerSecond = 10.0;
+
+    REQUIRE(deuca::evaluateStart(true, plan, false) == deuca::StartRefusal::None);
+}
+
+TEST_CASE("Une cadence nulle est refusee", "[engine][safety]")
+{
+    deuca::ClickPlan plan;
+    plan.clicksPerSecond = 0.0;
+
+    REQUIRE(deuca::evaluateStart(true, plan, false) == deuca::StartRefusal::InvalidRate);
+}
+
+TEST_CASE("Une session deja en cours est signalee avant tout le reste", "[engine][safety]")
+{
+    deuca::ClickPlan plan;
+    plan.clicksPerSecond = 0.0;
+
+    // Meme avec un plan invalide et sans arret d'urgence : dire « ca tourne
+    // deja » est le motif le plus utile a l'utilisateur.
+    REQUIRE(deuca::evaluateStart(false, plan, true) == deuca::StartRefusal::AlreadyRunning);
+}

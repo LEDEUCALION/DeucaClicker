@@ -145,3 +145,36 @@ TEST_CASE("La remise a zero ramene a la premiere cible", "[sequencer]")
     REQUIRE(sequencer.fillBurst(buffer) == 2);
     REQUIRE(buffer[0].moveTo == deuca::ScreenPoint{1, 1});
 }
+
+TEST_CASE("Un intervalle se convertit en cadence", "[plan]")
+{
+    REQUIRE(deuca::clicksPerSecondFromInterval(deuca::Duration{100ms}) == 10.0);
+    REQUIRE(deuca::clicksPerSecondFromInterval(deuca::Duration{1s}) == 1.0);
+    REQUIRE(deuca::clicksPerSecondFromInterval(deuca::Duration{1ms}) == 1000.0);
+}
+
+TEST_CASE("Un intervalle nul ou negatif ne donne pas de cadence", "[plan]")
+{
+    REQUIRE(deuca::clicksPerSecondFromInterval(deuca::Duration::zero()) == 0.0);
+    REQUIRE(deuca::clicksPerSecondFromInterval(deuca::Duration{-5ms}) == 0.0);
+}
+
+TEST_CASE("Une cadence se convertit en intervalle", "[plan]")
+{
+    REQUIRE(deuca::intervalFromClicksPerSecond(10.0) == deuca::Duration{100ms});
+    REQUIRE(deuca::intervalFromClicksPerSecond(1000.0) == deuca::Duration{1ms});
+}
+
+TEST_CASE("Une cadence nulle ou negative ne donne pas d'intervalle", "[plan]")
+{
+    REQUIRE(deuca::intervalFromClicksPerSecond(0.0) == deuca::Duration::zero());
+    REQUIRE(deuca::intervalFromClicksPerSecond(-3.0) == deuca::Duration::zero());
+}
+
+TEST_CASE("Les deux conversions sont reciproques", "[plan]")
+{
+    const deuca::Duration interval{40ms};
+    const double rate = deuca::clicksPerSecondFromInterval(interval);
+
+    REQUIRE(deuca::intervalFromClicksPerSecond(rate) == interval);
+}

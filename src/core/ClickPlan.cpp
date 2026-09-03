@@ -24,4 +24,25 @@ Duration burstPeriod(const ClickPlan& plan) noexcept
     return std::chrono::duration_cast<Duration>(std::chrono::duration<double>{seconds});
 }
 
+double clicksPerSecondFromInterval(Duration interval) noexcept
+{
+    if (interval <= Duration::zero())
+    {
+        return 0.0;
+    }
+
+    const auto seconds = std::chrono::duration<double>{interval}.count();
+    return 1.0 / seconds;
+}
+
+Duration intervalFromClicksPerSecond(double clicksPerSecond) noexcept
+{
+    if (!(clicksPerSecond > 0.0))
+    {
+        return Duration::zero();
+    }
+
+    return std::chrono::duration_cast<Duration>(std::chrono::duration<double>{1.0 / clicksPerSecond});
+}
+
 } // namespace deuca
