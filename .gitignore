@@ -1,6 +1,7 @@
-# --- Fichiers d'assistant : locaux uniquement, jamais publiés ---
+# --- Fichiers locaux uniquement, jamais publiés ---
 CLAUDE.md
 AGENTS.md
+APPRENTISSAGE.md
 .claude/
 .cursor/
 
