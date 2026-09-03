@@ -6,9 +6,14 @@
 namespace deuca
 {
 
+std::size_t pressesPerActivation(ClickStyle style) noexcept
+{
+    return style == ClickStyle::Double ? 2 : 1;
+}
+
 std::size_t eventsPerBurst(const ClickPlan& plan) noexcept
 {
-    return std::max<std::size_t>(1, plan.burstSize) * 2;
+    return std::max<std::size_t>(1, plan.burstSize) * pressesPerActivation(plan.style) * 2;
 }
 
 Duration burstPeriod(const ClickPlan& plan) noexcept

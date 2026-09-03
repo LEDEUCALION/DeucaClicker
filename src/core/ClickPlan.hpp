@@ -4,10 +4,28 @@
 #include "core/Waiting.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 namespace deuca
 {
+
+/// Ce qu'une activation produit.
+enum class ClickStyle
+{
+    /// Un couple appui-relâchement.
+    Single,
+    /// Deux couples enchaînés, sans délai entre eux.
+    ///
+    /// Le lot partant d'un bloc, les deux clics tombent forcément sous le seuil
+    /// de double-clic du système. C'est mécaniquement plus fiable qu'un
+    /// double-clic reconstitué avec une attente entre les deux, qui dépendrait
+    /// de la précision de cette attente.
+    Double,
+};
+
+/// Nombre de couples appui-relâchement produits par une activation.
+[[nodiscard]] std::size_t pressesPerActivation(ClickStyle style) noexcept;
 
 /// Ce qu'il faut cliquer, et à quel rythme.
 ///
@@ -19,8 +37,18 @@ struct ClickPlan
 {
     MouseButton button{MouseButton::Left};
 
-    /// Cadence visée, en clics par seconde.
+    ClickStyle style{ClickStyle::Single};
+
+    /// Cadence visée, en **activations** par seconde.
+    ///
+    /// En mode double-clic, dix veut donc dire dix doubles-clics par seconde,
+    /// soit vingt clics physiques. C'est ce qu'attend l'utilisateur en lisant
+    /// le réglage, mais cela mérite d'être écrit plutôt que deviné.
     double clicksPerSecond{10.0};
+
+    /// Nombre total d'activations avant arrêt automatique ; zéro lève la
+    /// limite.
+    std::uint64_t repeatLimit{0};
 
     /// Nombre de clics assemblés dans un même lot soumis au flux d'entrée.
     ///
@@ -36,8 +64,10 @@ struct ClickPlan
     std::vector<ScreenPoint> targets{};
 };
 
-/// Nombre d'événements produits par un lot : un appui et un relâchement par
-/// clic.
+/// Nombre d'événements produits par un lot.
+///
+/// Deux par couple appui-relâchement, et une activation en produit un ou deux
+/// selon le style.
 [[nodiscard]] std::size_t eventsPerBurst(const ClickPlan& plan) noexcept;
 
 /// Délai entre deux soumissions de lot.

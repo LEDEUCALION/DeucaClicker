@@ -178,3 +178,79 @@ TEST_CASE("Les deux conversions sont reciproques", "[plan]")
 
     REQUIRE(deuca::intervalFromClicksPerSecond(rate) == interval);
 }
+
+TEST_CASE("Un double clic produit deux couples par activation", "[sequencer]")
+{
+    deuca::ClickPlan plan;
+    plan.style = deuca::ClickStyle::Double;
+    plan.burstSize = 1;
+
+    REQUIRE(deuca::pressesPerActivation(plan.style) == 2);
+    REQUIRE(deuca::eventsPerBurst(plan) == 4);
+
+    deuca::ClickSequencer sequencer{plan};
+    std::array<deuca::ClickEvent, 4> buffer{};
+
+    REQUIRE(sequencer.fillBurst(buffer) == 4);
+    REQUIRE(buffer[0].action == deuca::ButtonAction::Press);
+    REQUIRE(buffer[1].action == deuca::ButtonAction::Release);
+    REQUIRE(buffer[2].action == deuca::ButtonAction::Press);
+    REQUIRE(buffer[3].action == deuca::ButtonAction::Release);
+}
+
+TEST_CASE("Un double clic tombe deux fois au meme endroit", "[sequencer]")
+{
+    deuca::ClickPlan plan;
+    plan.style = deuca::ClickStyle::Double;
+    plan.burstSize = 1;
+    plan.targets = {{10, 20}, {30, 40}};
+
+    deuca::ClickSequencer sequencer{plan};
+    std::array<deuca::ClickEvent, 4> buffer{};
+
+    REQUIRE(sequencer.fillBurst(buffer) == 4);
+
+    // La cible avance une fois par activation, pas une fois par appui : sinon
+    // les deux moities du double clic tomberaient a deux endroits differents et
+    // le systeme n'y verrait plus un double clic.
+    REQUIRE(buffer[0].moveTo == deuca::ScreenPoint{10, 20});
+    REQUIRE(buffer[2].moveTo == deuca::ScreenPoint{10, 20});
+
+    REQUIRE(sequencer.fillBurst(buffer) == 4);
+    REQUIRE(buffer[0].moveTo == deuca::ScreenPoint{30, 40});
+}
+
+TEST_CASE("Le plafond d'activations reduit le dernier lot", "[sequencer]")
+{
+    deuca::ClickPlan plan;
+    plan.burstSize = 8;
+
+    deuca::ClickSequencer sequencer{plan};
+    std::array<deuca::ClickEvent, 16> buffer{};
+
+    // Trois activations demandees sur un lot de huit : six evenements, pas
+    // seize. Depasser une limite saisie par l'utilisateur discredite l'outil.
+    REQUIRE(sequencer.fillBurst(buffer, 3) == 6);
+}
+
+TEST_CASE("Un plafond nul ne produit aucun evenement", "[sequencer]")
+{
+    deuca::ClickPlan plan;
+    plan.burstSize = 4;
+
+    deuca::ClickSequencer sequencer{plan};
+    std::array<deuca::ClickEvent, 8> buffer{};
+
+    REQUIRE(sequencer.fillBurst(buffer, 0) == 0);
+}
+
+TEST_CASE("Le plafond ne rallonge jamais un lot", "[sequencer]")
+{
+    deuca::ClickPlan plan;
+    plan.burstSize = 2;
+
+    deuca::ClickSequencer sequencer{plan};
+    std::array<deuca::ClickEvent, 8> buffer{};
+
+    REQUIRE(sequencer.fillBurst(buffer, 100) == 4);
+}
