@@ -2,6 +2,7 @@
 
 #include "core/ClickPlan.hpp"
 #include "engine/ClickEngine.hpp"
+#include "engine/RateGovernor.hpp"
 #include "platform/Hotkey.hpp"
 
 #include <memory>
@@ -62,6 +63,19 @@ public:
     [[nodiscard]] std::string refusalMessage() const;
 
     [[nodiscard]] EngineSnapshot snapshot() const noexcept;
+
+    /// Asservissement de la cadence a la reactivite de la cible.
+    void setGovernorEnabled(bool enabled) noexcept;
+    [[nodiscard]] bool governorEnabled() const noexcept;
+
+    /// Facteur courant applique a la cadence demandee, entre le plancher et un.
+    [[nodiscard]] double governorScale() const noexcept;
+
+    /// Derniere latence mesuree sur la fenetre visee.
+    [[nodiscard]] Duration governorLatency() const noexcept;
+
+    /// True si le dernier sondage a trouve la cible figee.
+    [[nodiscard]] bool targetHung() const noexcept;
 
     /// Le plan en cours d'édition.
     ///

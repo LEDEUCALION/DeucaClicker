@@ -8,6 +8,9 @@ add_library(deuca_core STATIC
     PrecisionWaiter.cpp
     Statistics.hpp
     Statistics.cpp
+    ITargetProbe.hpp
+    GovernorPolicy.hpp
+    GovernorPolicy.cpp
     ScreenCoordinates.hpp
     ScreenCoordinates.cpp
     ClickEvent.hpp

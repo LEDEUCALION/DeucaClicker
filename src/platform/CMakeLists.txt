@@ -12,6 +12,8 @@ add_library(deuca_platform STATIC
     Hotkey.cpp
     HotkeyService.hpp
     HotkeyService.cpp
+    ForegroundProbe.hpp
+    ForegroundProbe.cpp
     Cursor.hpp
     Cursor.cpp
     SendInputSink.hpp

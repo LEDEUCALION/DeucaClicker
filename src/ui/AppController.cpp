@@ -1,11 +1,13 @@
 #include "ui/AppController.hpp"
 
 #include "platform/Cursor.hpp"
+#include "platform/ForegroundProbe.hpp"
 #include "platform/HighResolutionTimer.hpp"
 #include "platform/HotkeyService.hpp"
 #include "platform/SendInputSink.hpp"
 #include "platform/ThreadTuning.hpp"
 
+#include <atomic>
 #include <mutex>
 
 namespace deuca::ui
@@ -26,7 +28,15 @@ struct AppController::Impl
 {
     platform::HighResolutionTimer timer;
     platform::SendInputSink sink;
+    platform::ForegroundProbe probe;
+    RateGovernor governor;
     ClickEngine engine;
+
+    /// L'asservissement est actif par défaut.
+    ///
+    /// C'est le comportement qui protège la cible, et le désactiver relève du
+    /// choix éclairé : une case à cocher, pas un réglage par défaut.
+    std::atomic<bool> governorEnabled{true};
 
     // Protège les démarrages et arrêts. Le raccourci global agit depuis son
     // propre fil : sans ce verrou, une pression sur la touche pendant qu'on
@@ -41,7 +51,7 @@ struct AppController::Impl
     // atteindre le moteur une fois la destruction commencée.
     std::unique_ptr<platform::HotkeyService> hotkeys;
 
-    Impl() : engine{sink, timer} {}
+    Impl() : governor{probe}, engine{sink, timer} {}
 };
 
 AppController::AppController() : m_impl{std::make_unique<Impl>()}
@@ -52,6 +62,13 @@ AppController::AppController() : m_impl{std::make_unique<Impl>()}
     // lui-même ; la fabrique les y installe et le jeton les défait à l'arrêt.
     m_impl->engine.setThreadPreparation(
         [] { return std::static_pointer_cast<void>(std::make_shared<platform::ScopedThreadTuning>()); });
+
+    // La source doit être immédiate : elle est consultée à chaque lot, sur le
+    // fil de cadence. Elle ne fait donc que lire un atomique publié par le fil
+    // de sondage, jamais sonder elle-même.
+    m_impl->engine.setRateScaleSource([this] {
+        return m_impl->governorEnabled.load(std::memory_order_relaxed) ? m_impl->governor.scale() : 1.0;
+    });
 
     m_impl->hotkeys =
         std::make_unique<platform::HotkeyService>(platform::defaultPanicHotkey(), [this] { toggle(); });
@@ -72,6 +89,14 @@ void AppController::start()
         return;
     }
 
+    // Le gouverneur démarre avant le moteur : la première mesure doit être
+    // disponible avant le premier lot, sinon la session part à pleine cadence
+    // sur une cible qu'on n'a pas encore regardée.
+    if (m_impl->governorEnabled.load(std::memory_order_relaxed))
+    {
+        m_impl->governor.start();
+    }
+
     m_impl->engine.start(m_impl->plan);
 }
 
@@ -79,6 +104,7 @@ void AppController::stop()
 {
     const std::lock_guard guard{m_impl->lifecycle};
     m_impl->engine.stop();
+    m_impl->governor.stop();
 }
 
 void AppController::toggle()
@@ -186,6 +212,42 @@ void AppController::captureTarget()
 void AppController::clearTargets()
 {
     m_impl->plan.targets.clear();
+}
+
+void AppController::setGovernorEnabled(bool enabled) noexcept
+{
+    m_impl->governorEnabled.store(enabled, std::memory_order_relaxed);
+
+    // Désactiver en cours de session arrête le sondage tout de suite : laisser
+    // un fil mesurer ce que plus personne ne lit serait du travail pur perte.
+    if (!enabled)
+    {
+        m_impl->governor.stop();
+    }
+    else if (m_impl->engine.isRunning())
+    {
+        m_impl->governor.start();
+    }
+}
+
+bool AppController::governorEnabled() const noexcept
+{
+    return m_impl->governorEnabled.load(std::memory_order_relaxed);
+}
+
+double AppController::governorScale() const noexcept
+{
+    return m_impl->governorEnabled.load(std::memory_order_relaxed) ? m_impl->governor.scale() : 1.0;
+}
+
+Duration AppController::governorLatency() const noexcept
+{
+    return m_impl->governor.lastLatency();
+}
+
+bool AppController::targetHung() const noexcept
+{
+    return m_impl->governor.targetHung();
 }
 
 } // namespace deuca::ui

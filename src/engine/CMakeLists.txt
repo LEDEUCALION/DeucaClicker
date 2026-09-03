@@ -4,7 +4,9 @@
 # doublures, fil d'exécution compris.
 add_library(deuca_engine STATIC
     ClickEngine.hpp
-    ClickEngine.cpp)
+    ClickEngine.cpp
+    RateGovernor.hpp
+    RateGovernor.cpp)
 
 add_library(deuca::engine ALIAS deuca_engine)
 
