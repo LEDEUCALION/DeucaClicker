@@ -111,6 +111,17 @@ public:
     /// déjà démarrée.
     void setThreadPreparation(ThreadPreparation preparation);
 
+    /// Installe la source du facteur de cadence.
+    ///
+    /// Consultée une fois par lot. Elle doit être immédiate — typiquement la
+    /// lecture d'un atomique publié par un autre fil. Une source qui bloque
+    /// bloquerait la cadence, ce qui viderait de son sens l'asservissement
+    /// qu'elle est censée servir.
+    ///
+    /// Sans source installée, le facteur vaut un et la cadence demandée est
+    /// appliquée telle quelle.
+    void setRateScaleSource(std::function<double()> source);
+
     /// Démarre une session. Un appel sur un moteur déjà en marche l'arrête
     /// d'abord, pour qu'il n'existe jamais deux boucles concurrentes.
     void start(ClickPlan plan);
@@ -129,6 +140,7 @@ private:
     IBlockingSleeper* m_sleeper;
     EngineConfig m_config;
     ThreadPreparation m_preparation;
+    std::function<double()> m_rateScaleSource;
 
     std::atomic<std::uint64_t> m_burstsSubmitted{0};
     std::atomic<std::uint64_t> m_clicksEmitted{0};

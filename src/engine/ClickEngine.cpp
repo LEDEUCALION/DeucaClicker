@@ -1,6 +1,7 @@
 #include "engine/ClickEngine.hpp"
 
 #include "core/ClickSequencer.hpp"
+#include "core/GovernorPolicy.hpp"
 #include "core/PrecisionWaiter.hpp"
 
 #include <algorithm>
@@ -63,6 +64,11 @@ ClickEngine::~ClickEngine()
 void ClickEngine::setThreadPreparation(ThreadPreparation preparation)
 {
     m_preparation = std::move(preparation);
+}
+
+void ClickEngine::setRateScaleSource(std::function<double()> source)
+{
+    m_rateScaleSource = std::move(source);
 }
 
 void ClickEngine::start(ClickPlan plan)
@@ -155,10 +161,15 @@ void ClickEngine::run(std::stop_token token, ClickPlan plan)
             break;
         }
 
+        // Le facteur est relu à chaque tour : c'est ce qui permet à
+        // l'asservissement d'agir sur une session déjà lancée. La lecture doit
+        // rester immédiate, le contrat de la source le dit.
+        const double scale = m_rateScaleSource ? m_rateScaleSource() : 1.0;
+
         // Échéance avancée d'une période pleine plutôt que recalculée depuis
         // l'instant courant : cumuler le retard de chaque tour ferait dériver
         // la cadence au lieu de la tenir.
-        deadline += period;
+        deadline += scaledPeriod(period, scale);
         waiter.waitUntil(deadline);
 
         if (token.stop_requested())

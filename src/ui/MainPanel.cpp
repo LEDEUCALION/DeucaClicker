@@ -296,6 +296,41 @@ void drawTelemetrySection(AppController& controller)
                            static_cast<unsigned long long>(snapshot.blockedSubmissions));
         ImGui::TextDisabled("L'entree est bloquee par un autre processus.");
     }
+
+    ImGui::SeparatorText("Reactivite de la cible");
+
+    bool governor = controller.governorEnabled();
+    if (ImGui::Checkbox("Adapter la cadence a la cible", &governor))
+    {
+        controller.setGovernorEnabled(governor);
+    }
+
+    if (!governor)
+    {
+        ImGui::TextDisabled("Desactive : la cadence demandee est appliquee telle");
+        ImGui::TextDisabled("quelle, meme si la cible ne suit pas.");
+        return;
+    }
+
+    const double scale = controller.governorScale();
+    const auto latencyMs = std::chrono::duration<double, std::milli>{controller.governorLatency()}.count();
+
+    ImGui::Text("Latence de la cible : %.1f ms", latencyMs);
+
+    const ImVec4 scaleColour = scale < 0.99 ? kWarningColour : kRunningColour;
+    ImGui::TextColored(scaleColour, "Cadence appliquee : %.0f %% du reglage", scale * 100.0);
+
+    if (controller.targetHung())
+    {
+        ImGui::TextColored(kWarningColour, "La cible ne repond plus.");
+        ImGui::TextDisabled("Ralentir n'y changera rien : elle ne traite plus");
+        ImGui::TextDisabled("aucun message. Mieux vaut arreter.");
+    }
+    else if (scale < 0.99)
+    {
+        ImGui::TextDisabled("La file de la cible s'engorge : la cadence recule");
+        ImGui::TextDisabled("et remontera d'elle-meme des qu'elle suivra.");
+    }
 }
 
 void drawSettingsSection(AppController& controller, PanelState& state)
