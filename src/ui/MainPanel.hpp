@@ -21,6 +21,12 @@ struct PanelState
 
     /// Dernier échec de reconfiguration, affiché jusqu'à la tentative suivante.
     bool rebindFailed{false};
+
+    /// La modale de réglage du raccourci est ouverte.
+    ///
+    /// Les réglages sortent de la grille : on les touche une fois par
+    /// installation, ils n'ont pas à occuper une place permanente.
+    bool settingsOpen{false};
 };
 
 /// Dessine l'interface pour l'image courante.

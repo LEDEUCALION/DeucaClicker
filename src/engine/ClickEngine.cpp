@@ -5,6 +5,7 @@
 #include "core/PrecisionWaiter.hpp"
 
 #include <algorithm>
+#include <random>
 #include <vector>
 
 namespace deuca
@@ -145,6 +146,12 @@ void ClickEngine::run(std::stop_token token, ClickPlan plan)
     const std::size_t eventsPerActivation = pressesPerActivation(plan.style) * 2;
     std::uint64_t emitted = 0;
 
+    // Générateur local au fil : pas de partage, donc pas de verrou ni de
+    // contention. La graine vient de l'horloge parce que la reproductibilité
+    // n'a aucune valeur ici — c'est précisément l'imprévisibilité qu'on veut.
+    std::mt19937 generator{static_cast<std::mt19937::result_type>(startedAt.time_since_epoch().count())};
+    std::uniform_real_distribution<double> jitterDraw{0.0, 1.0};
+
     m_running.store(true, std::memory_order_relaxed);
 
     while (!token.stop_requested())
@@ -170,7 +177,12 @@ void ClickEngine::run(std::stop_token token, ClickPlan plan)
         // l'instant courant : cumuler le retard de chaque tour ferait dériver
         // la cadence au lieu de la tenir.
         deadline += scaledPeriod(period, scale);
-        waiter.waitUntil(deadline);
+
+        // La variation aléatoire s'applique à l'instant visé, jamais à
+        // l'accumulateur : sinon les écarts s'additionneraient d'un tour sur
+        // l'autre et la cadence dériverait au lieu d'osciller autour de sa
+        // valeur.
+        waiter.waitUntil(applyJitter(deadline, plan.jitter, jitterDraw(generator)));
 
         if (token.stop_requested())
         {

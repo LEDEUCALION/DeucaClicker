@@ -50,6 +50,15 @@ struct ClickPlan
     /// limite.
     std::uint64_t repeatLimit{0};
 
+    /// Variation aléatoire appliquée à chaque échéance, en plus ou en moins.
+    ///
+    /// Zéro donne une cadence parfaitement régulière. Une valeur non nulle fait
+    /// osciller chaque clic dans l'intervalle, sans toucher à la cadence
+    /// moyenne : la variation s'applique à l'instant visé, jamais à
+    /// l'accumulateur qui porte le rythme. Sans cette précaution, les écarts
+    /// s'additionneraient et la cadence dériverait au lieu d'osciller.
+    Duration jitter{Duration::zero()};
+
     /// Nombre de clics assemblés dans un même lot soumis au flux d'entrée.
     ///
     /// C'est le levier de débit. Un lot est inséré d'un bloc et n'est pas
@@ -94,5 +103,13 @@ struct ClickPlan
 ///
 /// @return zéro si la cadence est nulle ou négative.
 [[nodiscard]] Duration intervalFromClicksPerSecond(double clicksPerSecond) noexcept;
+
+/// Décale une échéance d'une fraction de l'amplitude de variation.
+///
+/// @param unit valeur dans [0, 1) tirée au sort par l'appelant. La séparer du
+///        tirage rend la règle vérifiable : on peut éprouver les extrêmes et le
+///        centre sans dépendre d'un générateur.
+/// @return l'échéance inchangée si l'amplitude est nulle ou négative.
+[[nodiscard]] Timestamp applyJitter(Timestamp deadline, Duration amplitude, double unit) noexcept;
 
 } // namespace deuca

@@ -14,6 +14,10 @@ add_library(deuca_platform STATIC
     HotkeyService.cpp
     ForegroundProbe.hpp
     ForegroundProbe.cpp
+    PointPicker.hpp
+    PointPicker.cpp
+    SystemFont.hpp
+    SystemFont.cpp
     Cursor.hpp
     Cursor.cpp
     SendInputSink.hpp

@@ -37,8 +37,18 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int)
     deuca::ui::AppController controller;
     deuca::ui::PanelState panelState;
 
+    // La désignation d'un point efface la fenêtre le temps que l'utilisateur
+    // aille cliquer ailleurs ; le contrôleur a donc besoin de sa poignée.
+    controller.setMainWindow(host.nativeHandle());
+
     while (host.pumpMessages())
     {
+        // Le point désigné arrive depuis un crochet système, hors du flux de
+        // l'interface. Il faut venir le chercher à chaque tour, et notamment
+        // pendant que la fenêtre est réduite — c'est précisément là qu'il
+        // arrive.
+        controller.pollPointCapture();
+
         if (!host.beginFrame())
         {
             ::Sleep(kIdleSleepMs);

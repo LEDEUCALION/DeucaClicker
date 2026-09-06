@@ -9,6 +9,8 @@ add_library(deuca_ui STATIC
     ImGuiHost.cpp
     MainPanel.hpp
     MainPanel.cpp
+    Theme.hpp
+    Theme.cpp
     AppController.hpp
     AppController.cpp)
 

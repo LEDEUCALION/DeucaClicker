@@ -19,8 +19,10 @@ public:
     struct Config
     {
         std::wstring title{L"DeucaClicker"};
-        int width{760};
-        int height{520};
+        // Gabarit de 860 × 620 plus les bordures et la barre de titre que
+        // Windows ajoute autour de la zone client.
+        int width{876};
+        int height{658};
     };
 
     explicit ImGuiHost(const Config& config);
@@ -47,6 +49,12 @@ public:
 
     /// Effectue le rendu de l'image et la présente à l'écran.
     void endFrame();
+
+    /// Poignée native de la fenêtre, en void* pour ne pas imposer <Windows.h>.
+    ///
+    /// Nécessaire à la capture de point, qui doit effacer la fenêtre pendant
+    /// que l'utilisateur désigne son point ailleurs à l'écran.
+    [[nodiscard]] void* nativeHandle() const noexcept;
 
 private:
     struct Impl;
