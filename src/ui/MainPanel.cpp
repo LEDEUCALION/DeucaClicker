@@ -3,6 +3,7 @@
 #include "core/Version.hpp"
 #include "ui/AppController.hpp"
 #include "ui/Theme.hpp"
+#include "ui/Widgets.hpp"
 
 #include <imgui.h>
 
@@ -39,6 +40,9 @@ constexpr float kCardPadY = metric::esp12;
 /// rétrécit, jamais celle-ci.
 constexpr float kRightColumnMin = 240.0f;
 constexpr float kRightColumnPreferred = 276.0f;
+
+/// Côté du bouton de suppression d'un point.
+constexpr float kDeleteSide = 20.0f;
 
 [[nodiscard]] ImVec4 vec4(ImU32 packed) noexcept
 {
@@ -232,7 +236,7 @@ void drawStatusBar(AppController& controller, PanelState& state, ImVec2 size)
     textColoured(running ? colour::encre : colour::sourdine, running ? "EN MARCHE" : "À L'ARRÊT");
 
     ImGui::SameLine(0.0f, metric::esp12);
-    textColoured(colour::tertiaire, "%s", describeHotkey(controller.panicHotkey()).c_str());
+    textColoured(colour::sourdine, "%s", describeHotkey(controller.panicHotkey()).c_str());
 
     ImGui::SameLine();
     ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowWidth() - kCardPadX - 92.0f));
@@ -255,22 +259,22 @@ void drawStatusBar(AppController& controller, PanelState& state, ImVec2 size)
     const auto latencyMs = std::chrono::duration<double, std::milli>{controller.governorLatency()}.count();
     const double scale = controller.governorScale() * 100.0;
 
-    textColoured(colour::tertiaire, "LOTS");
+    textColoured(colour::sourdine, "LOTS");
     ImGui::SameLine(0.0f, metric::esp8);
     textColoured(colour::encre, "%llu", static_cast<unsigned long long>(snapshot.burstsSubmitted));
     ImGui::SameLine(0.0f, metric::esp16);
 
-    textColoured(colour::tertiaire, "CLICS");
+    textColoured(colour::sourdine, "CLICS");
     ImGui::SameLine(0.0f, metric::esp8);
     textColoured(colour::encre, "%llu", static_cast<unsigned long long>(snapshot.clicksEmitted));
     ImGui::SameLine(0.0f, metric::esp16);
 
-    textColoured(colour::tertiaire, "LATENCE");
+    textColoured(colour::sourdine, "LATENCE");
     ImGui::SameLine(0.0f, metric::esp8);
     textColoured(colour::encre, "%.1f ms", latencyMs);
     ImGui::SameLine(0.0f, metric::esp16);
 
-    textColoured(colour::tertiaire, "CADENCE");
+    textColoured(colour::sourdine, "CADENCE");
     ImGui::SameLine(0.0f, metric::esp8);
     textColoured(scale < 99.0 ? colour::alerte : colour::accentClair, "%.0f %%", scale);
 
@@ -461,7 +465,12 @@ void drawTargetsCard(AppController& controller, ImVec2 size)
     }
 
     // Le puits occupe ce qui reste une fois la rangée de boutons réservée.
-    const float buttonRow = metric::esp32 + ImGui::GetStyle().ItemSpacing.y;
+    //
+    // La réserve compte la hauteur du bouton **et** les deux espacements qui
+    // l'encadrent. En n'en comptant qu'un, la rangée débordait du bas de la
+    // carte et les libellés se faisaient trancher — un bouton dont on ne lit
+    // que la moitié haute n'est plus un bouton.
+    const float buttonRow = metric::esp32 + ImGui::GetStyle().ItemSpacing.y * 2.0f;
     const float wellHeight = std::max(48.0f, ImGui::GetContentRegionAvail().y - buttonRow);
     const ImVec2 wellSize{ImGui::GetContentRegionAvail().x, wellHeight};
     const ImVec2 wellMin = ImGui::GetCursorScreenPos();
@@ -476,11 +485,21 @@ void drawTargetsCard(AppController& controller, ImVec2 size)
 
     std::size_t toRemove = plan.targets.size();
 
-    if (plan.targets.empty())
+    if (controller.capturingPoint())
+    {
+        // Le cas se voit surtout si l'utilisateur remonte la fenêtre pendant la
+        // désignation. Le guide principal reste le repère qui suit le curseur.
+        const ScreenPoint live = controller.liveCursor();
+        textColoured(colour::accentClair, "Désignation en cours");
+        textColoured(colour::encre, "X %d  Y %d", live.x, live.y);
+        textColoured(colour::tertiaire, "Clic gauche : enregistrer");
+        textColoured(colour::tertiaire, "Clic droit : annuler");
+    }
+    else if (plan.targets.empty())
     {
         textColoured(colour::eteint, "Aucun point.");
-        textColoured(colour::eteint, "Placez le curseur,");
-        textColoured(colour::eteint, "puis capturez.");
+        textColoured(colour::eteint, "Utilisez Désigner pour");
+        textColoured(colour::eteint, "en enregistrer un.");
     }
     else
     {
@@ -488,16 +507,24 @@ void drawTargetsCard(AppController& controller, ImVec2 size)
         {
             ImGui::PushID(static_cast<int>(i));
 
-            textColoured(colour::tertiaire, "%2zu", i + 1);
+            const float rowTop = ImGui::GetCursorPosY();
+
+            textColoured(colour::accentClair, "%2zu", i + 1);
             ImGui::SameLine(0.0f, metric::esp8);
             textColoured(colour::encre, "X %-5d Y %-5d", plan.targets[i].x, plan.targets[i].y);
 
-            ImGui::SameLine();
-            ImGui::SetCursorPosX(
-                std::max(ImGui::GetCursorPosX(), ImGui::GetContentRegionMax().x - metric::esp16));
-            if (ImGui::SmallButton("x"))
+            // La croix est calée à droite et centrée sur la ligne plutôt que
+            // posée à la suite du texte : la position d'un bouton de
+            // suppression ne doit pas dépendre de la longueur des coordonnées
+            // qu'il accompagne.
+            ImGui::SetCursorPos(ImVec2{ImGui::GetContentRegionMax().x - kDeleteSide, rowTop});
+            if (deleteButton("suppr", kDeleteSide))
             {
                 toRemove = i;
+            }
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Supprimer ce point");
             }
 
             ImGui::PopID();
@@ -515,28 +542,36 @@ void drawTargetsCard(AppController& controller, ImVec2 size)
 
     const float half = (ImGui::GetContentRegionAvail().x - metric::esp8) * 0.5f;
 
-    // Désigner un point efface l'application le temps du geste. C'est le seul
-    // déroulé qui fonctionne : capturer la position courante obligerait à
-    // garder la fenêtre sous les yeux tout en visant ailleurs, ce qui est
-    // impossible dès que la cible se trouve derrière elle.
-    if (ImGui::Button("Désigner", ImVec2{half, metric::esp32}))
+    // Les deux boutons portent leur intention par la couleur. Ajouter et
+    // détruire côte à côte, du même gris, est la disposition qui produit les
+    // suppressions accidentelles.
+    //
+    // Désigner efface l'application le temps du geste : c'est le seul déroulé
+    // qui fonctionne, capturer la position courante obligeant à garder la
+    // fenêtre sous les yeux tout en visant ailleurs.
+    if (toneButton("Désigner", ImVec2{half, metric::esp32}, ButtonTone::Accent))
     {
         controller.beginPointCapture();
     }
     if (ImGui::IsItemHovered())
     {
-        ImGui::SetTooltip("L'application s'efface. Cliquez au point voulu.\n"
-                          "Clic droit pour annuler.");
+        ImGui::SetTooltip("L'application s'efface le temps du geste.\n"
+                          "Clic gauche : enregistrer le point.\n"
+                          "Clic droit : annuler.");
     }
 
     ImGui::SameLine(0.0f, metric::esp8);
-    ImGui::BeginDisabled(plan.targets.empty());
-    if (ImGui::Button("Vider", ImVec2{half, metric::esp32}))
+
+    const bool hasTargets = !plan.targets.empty();
+    if (toneButton("Vider", ImVec2{half, metric::esp32}, ButtonTone::Danger, hasTargets))
     {
         controller.clearTargets();
         controller.setUseTargets(false);
     }
-    ImGui::EndDisabled();
+    if (hasTargets && ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Supprimer les %zu points", plan.targets.size());
+    }
 
     endCard();
 }

@@ -11,6 +11,8 @@ add_library(deuca_ui STATIC
     MainPanel.cpp
     Theme.hpp
     Theme.cpp
+    Widgets.hpp
+    Widgets.cpp
     AppController.hpp
     AppController.cpp)
 

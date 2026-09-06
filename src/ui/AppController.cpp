@@ -1,5 +1,6 @@
 #include "ui/AppController.hpp"
 
+#include "platform/CaptureOverlay.hpp"
 #include "platform/Cursor.hpp"
 #include "platform/ForegroundProbe.hpp"
 #include "platform/HighResolutionTimer.hpp"
@@ -49,6 +50,7 @@ struct AppController::Impl
     StartRefusal refusal{StartRefusal::None};
 
     platform::PointPicker picker;
+    platform::CaptureOverlay overlay;
     void* mainWindow{nullptr};
 
     /// Une désignation a été demandée et n'est pas encore soldée.
@@ -243,12 +245,14 @@ bool AppController::beginPointCapture()
         return false;
     }
 
+    m_impl->overlay.show(m_impl->picker.liveCursor());
     m_impl->captureRequested = true;
     return true;
 }
 
 void AppController::cancelPointCapture()
 {
+    m_impl->overlay.hide();
     m_impl->picker.cancel();
     m_impl->captureRequested = false;
 }
@@ -288,7 +292,13 @@ void AppController::pollPointCapture()
     if (!m_impl->picker.isActive())
     {
         cancelPointCapture();
+        return;
     }
+
+    // Le repère suit le curseur : c'est la seule chose visible pendant que la
+    // fenêtre est réduite, et donc la seule qui dise à l'utilisateur ce qu'on
+    // attend de lui.
+    m_impl->overlay.moveTo(m_impl->picker.liveCursor());
 }
 
 void AppController::captureTarget()

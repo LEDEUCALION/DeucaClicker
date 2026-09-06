@@ -93,27 +93,36 @@ void applyStyle(float scale)
     colours[ImGuiCol_Text] = toVec4(colour::encre);
     colours[ImGuiCol_TextDisabled] = toVec4(colour::tertiaire);
 
-    // Bordure décorative par défaut. Les contrôles reçoivent la bordure à fort
-    // contraste au cas par cas : c'est cette différence qui dit à l'utilisateur
-    // ce qui répond au clic.
-    colours[ImGuiCol_Border] = toVec4(colour::filet);
+    // Cette bordure ne s'applique qu'aux contrôles : les cartes dessinent la
+    // leur à la main, en filet décoratif. On lui donne donc la valeur à fort
+    // contraste, et c'est cette différence — et elle seule — qui dit à
+    // l'utilisateur ce qui répond au clic.
+    colours[ImGuiCol_Border] = toVec4(colour::bordControle);
     colours[ImGuiCol_BorderShadow] = ImVec4{0.0f, 0.0f, 0.0f, 0.0f};
 
-    colours[ImGuiCol_FrameBg] = toVec4(colour::creux);
-    colours[ImGuiCol_FrameBgHovered] = toVec4(colour::controle);
-    colours[ImGuiCol_FrameBgActive] = toVec4(colour::carteHaute);
+    // Fond de contrôle plus clair que la carte, jamais plus sombre.
+    //
+    // Un creux quasi noir sur une carte quasi noire donne une case à cocher
+    // invisible : l'utilisateur ne voit qu'un libellé flottant et ne sait pas
+    // qu'il y a quelque chose à cocher.
+    colours[ImGuiCol_FrameBg] = toVec4(colour::controle);
+    colours[ImGuiCol_FrameBgHovered] = toVec4(colour::carteHaute);
+    colours[ImGuiCol_FrameBgActive] = toVec4(IM_COL32(0x1C, 0x28, 0x22, 255));
 
     colours[ImGuiCol_Button] = toVec4(colour::controle);
     colours[ImGuiCol_ButtonHovered] = toVec4(colour::carteHaute);
     colours[ImGuiCol_ButtonActive] = toVec4(colour::creux);
 
+    // Le curseur de reglage doit rester visible sur toute sa course, y compris
+    // pose a l'extremite gauche ou il ne reste qu'un liseré.
+    colours[ImGuiCol_SliderGrab] = toVec4(colour::accent);
+    colours[ImGuiCol_SliderGrabActive] = toVec4(colour::lueur);
+
     colours[ImGuiCol_Header] = toVec4(IM_COL32(0x12, 0x33, 0x22, 255));
     colours[ImGuiCol_HeaderHovered] = toVec4(IM_COL32(0x1D, 0x2A, 0x23, 255));
     colours[ImGuiCol_HeaderActive] = toVec4(IM_COL32(0x12, 0x33, 0x22, 255));
 
-    colours[ImGuiCol_CheckMark] = toVec4(colour::accent);
-    colours[ImGuiCol_SliderGrab] = toVec4(colour::accent);
-    colours[ImGuiCol_SliderGrabActive] = toVec4(colour::accentClair);
+    colours[ImGuiCol_CheckMark] = toVec4(colour::lueur);
 
     colours[ImGuiCol_Separator] = toVec4(colour::filet);
     colours[ImGuiCol_SeparatorHovered] = toVec4(colour::filetFort);
