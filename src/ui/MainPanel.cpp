@@ -240,9 +240,17 @@ void drawStatusBar(AppController& controller, PanelState& state, ImVec2 size)
 
     ImGui::SameLine();
     ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowWidth() - kCardPadX - 92.0f));
-    if (ImGui::Button("Raccourci", ImVec2{92.0f, 0.0f}))
+    // Le bouton passe en accent quand le raccourci d'arrêt manque : c'est
+    // alors la seule action qui débloque la situation, et elle doit se
+    // distinguer du reste plutôt que de se fondre dans le bandeau.
+    if (toneButton("Raccourci", ImVec2{92.0f, metric::esp28},
+                   armed ? ButtonTone::Neutral : ButtonTone::Accent))
     {
         state.settingsOpen = true;
+    }
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Changer la combinaison de démarrage et d'arrêt");
     }
 
     // La seconde rangée porte soit la télémétrie, soit l'avertissement. Un état
@@ -588,10 +596,26 @@ void drawSettingsModal(AppController& controller, PanelState& state)
                                    viewport->WorkPos.y + viewport->WorkSize.y * 0.5f},
                             ImGuiCond_Always, ImVec2{0.5f, 0.5f});
 
-    if (!ImGui::BeginPopupModal("Raccourci", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{metric::esp20, metric::esp16});
+
+    if (!ImGui::BeginPopupModal("Raccourci", nullptr,
+                                ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar))
     {
+        ImGui::PopStyleVar();
         return;
     }
+
+    // Titre et filet dessinés comme ceux des cartes : une modale reste une
+    // surface de l'application, elle n'a pas à emprunter le style du système.
+    textColoured(colour::sourdine, "RACCOURCI DE DÉMARRAGE ET D'ARRÊT");
+    ImGui::Separator();
+    ImGui::Dummy(ImVec2{0.0f, metric::esp4});
+
+    textColoured(colour::tertiaire, "Actuel");
+    ImGui::SameLine(0.0f, metric::esp12);
+    textColoured(colour::encre, "%s", describeHotkey(controller.panicHotkey()).c_str());
+
+    ImGui::Dummy(ImVec2{0.0f, metric::esp8});
 
     ImGui::Checkbox("Ctrl", &state.pendingControl);
     ImGui::SameLine(0.0f, metric::esp16);
@@ -621,11 +645,15 @@ void drawSettingsModal(AppController& controller, PanelState& state)
                                      .virtualKey = kFirstFunctionKey +
                                                    static_cast<std::uint32_t>(state.pendingFunctionKeyIndex)};
 
-    ImGui::Spacing();
+    ImGui::Dummy(ImVec2{0.0f, metric::esp4});
+
+    textColoured(colour::tertiaire, "Nouveau");
+    ImGui::SameLine(0.0f, metric::esp12);
     textColoured(colour::accentClair, "%s", describeHotkey(candidate).c_str());
 
     // La place de l'avertissement est réservée en permanence : la modale garde
-    // sa hauteur, qu'un refus survienne ou non.
+    // sa hauteur, qu'un refus survienne ou non. Une boîte qui grandit sous le
+    // curseur déplace le bouton qu'on s'apprêtait à presser.
     if (state.rebindFailed)
     {
         textColoured(colour::alerte, "Refusée : une autre application la détient.");
@@ -635,9 +663,9 @@ void drawSettingsModal(AppController& controller, PanelState& state)
         ImGui::Dummy(ImVec2{0.0f, ImGui::GetTextLineHeight()});
     }
 
-    ImGui::Spacing();
+    ImGui::Dummy(ImVec2{0.0f, metric::esp8});
 
-    if (ImGui::Button("Annuler", ImVec2{110.0f, metric::esp32}))
+    if (toneButton("Annuler", ImVec2{116.0f, metric::esp32}, ButtonTone::Neutral))
     {
         state.settingsOpen = false;
         state.rebindFailed = false;
@@ -645,7 +673,12 @@ void drawSettingsModal(AppController& controller, PanelState& state)
     }
 
     ImGui::SameLine(0.0f, metric::esp12);
-    if (ImGui::Button("Appliquer", ImVec2{110.0f, metric::esp32}))
+
+    // L'application est refusée tant que la combinaison n'a pas changé :
+    // proposer d'appliquer ce qui est déjà en place n'a pas de sens et laisse
+    // croire qu'il s'est passé quelque chose.
+    const bool changed = !(candidate == controller.panicHotkey());
+    if (toneButton("Appliquer", ImVec2{116.0f, metric::esp32}, ButtonTone::Accent, changed))
     {
         state.rebindFailed = !controller.rebindPanicHotkey(candidate);
         if (!state.rebindFailed)
@@ -656,6 +689,7 @@ void drawSettingsModal(AppController& controller, PanelState& state)
     }
 
     ImGui::EndPopup();
+    ImGui::PopStyleVar();
 }
 
 } // namespace
