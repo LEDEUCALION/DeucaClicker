@@ -254,3 +254,33 @@ TEST_CASE("Le plafond ne rallonge jamais un lot", "[sequencer]")
 
     REQUIRE(sequencer.fillBurst(buffer, 100) == 4);
 }
+
+TEST_CASE("Une amplitude nulle laisse l'echeance intacte", "[plan][jitter]")
+{
+    const deuca::Timestamp base = deuca::Clock::now();
+
+    REQUIRE(deuca::applyJitter(base, deuca::Duration::zero(), 0.9) == base);
+    REQUIRE(deuca::applyJitter(base, deuca::Duration{-5ms}, 0.9) == base);
+}
+
+TEST_CASE("La variation est centree sur l'echeance", "[plan][jitter]")
+{
+    const deuca::Timestamp base = deuca::Clock::now();
+    const deuca::Duration amplitude{40ms};
+
+    // Un tirage au milieu ne decale rien : c'est ce qui garantit que la cadence
+    // moyenne reste celle demandee.
+    REQUIRE(deuca::applyJitter(base, amplitude, 0.5) == base);
+
+    REQUIRE(deuca::applyJitter(base, amplitude, 0.0) == base - amplitude);
+    REQUIRE(deuca::applyJitter(base, amplitude, 1.0) == base + amplitude);
+}
+
+TEST_CASE("Un tirage hors intervalle est borne", "[plan][jitter]")
+{
+    const deuca::Timestamp base = deuca::Clock::now();
+    const deuca::Duration amplitude{10ms};
+
+    REQUIRE(deuca::applyJitter(base, amplitude, -3.0) == base - amplitude);
+    REQUIRE(deuca::applyJitter(base, amplitude, 42.0) == base + amplitude);
+}

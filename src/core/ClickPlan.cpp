@@ -50,4 +50,19 @@ Duration intervalFromClicksPerSecond(double clicksPerSecond) noexcept
     return std::chrono::duration_cast<Duration>(std::chrono::duration<double>{1.0 / clicksPerSecond});
 }
 
+Timestamp applyJitter(Timestamp deadline, Duration amplitude, double unit) noexcept
+{
+    if (amplitude <= Duration::zero())
+    {
+        return deadline;
+    }
+
+    // unit ramené dans [-1, 1] : le tirage est centré, donc la variation ne
+    // décale pas la cadence moyenne — elle ne fait qu'osciller autour.
+    const double centred = std::clamp(unit, 0.0, 1.0) * 2.0 - 1.0;
+    const auto offset = static_cast<Duration::rep>(static_cast<double>(amplitude.count()) * centred);
+
+    return deadline + Duration{offset};
+}
+
 } // namespace deuca

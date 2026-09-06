@@ -2,6 +2,9 @@
 
 #include "platform/WindowsLean.hpp"
 
+#include "platform/SystemFont.hpp"
+#include "ui/Theme.hpp"
+
 #include <imgui.h>
 #include <imgui_impl_dx11.h>
 #include <imgui_impl_win32.h>
@@ -10,6 +13,7 @@
 #include <dxgi.h>
 
 #include <iterator>
+#include <string>
 
 // Déclarée par le backend mais délibérément absente de son en-tête public, afin
 // que les applications aient à choisir explicitement de lui transmettre les
@@ -23,6 +27,21 @@ namespace
 
 constexpr wchar_t kWindowClassName[] = L"DeucaClicker.MainWindow";
 constexpr float kDefaultDpi = 96.0f;
+
+/// Taille de base du texte, en points logiques.
+///
+/// La mise à l'échelle selon le DPI est faite par ImGui : cette valeur est
+/// celle d'un écran à cent pour cent.
+constexpr float kBaseFontSize = 16.0f;
+
+/// Taille minimale de la zone client, en points logiques.
+///
+/// En dessous, les cartes n'ont plus la place de contenir leurs contrôles et
+/// le contenu se fait couper. Interdire le redimensionnement au-delà vaut
+/// mieux que d'afficher une interface tronquée : la limite est posée par le
+/// système, pas rattrapée après coup.
+constexpr LONG kMinClientWidth = 840;
+constexpr LONG kMinClientHeight = 600;
 
 /// Libère une interface COM et remet le pointeur à nul, dans cet ordre.
 template <typename T>
@@ -179,6 +198,21 @@ LRESULT CALLBACK ImGuiHost::Impl::windowProc(HWND hwnd, UINT message, WPARAM wPa
         applySuggestedDpiRect(hwnd, lParam);
         return 0;
 
+    case WM_GETMINMAXINFO: {
+        const float scale = static_cast<float>(::GetDpiForWindow(hwnd)) / kDefaultDpi;
+        RECT frame{0, 0, static_cast<LONG>(static_cast<float>(kMinClientWidth) * scale),
+                   static_cast<LONG>(static_cast<float>(kMinClientHeight) * scale)};
+
+        // Le minimum porte sur la zone client ; on y ajoute ce que Windows
+        // dessine autour, sans quoi la contrainte serait trop lâche des bordures.
+        ::AdjustWindowRectExForDpi(&frame, WS_OVERLAPPEDWINDOW, FALSE, 0, ::GetDpiForWindow(hwnd));
+
+        auto* info = reinterpret_cast<MINMAXINFO*>(lParam);
+        info->ptMinTrackSize.x = frame.right - frame.left;
+        info->ptMinTrackSize.y = frame.bottom - frame.top;
+        return 0;
+    }
+
     case WM_SYSCOMMAND:
         // On avale l'activation du menu par Alt et F10 : il n'y a ici aucun
         // menu système à ouvrir, et cela ne fait que voler le focus clavier à
@@ -255,8 +289,19 @@ ImGuiHost::ImGuiHost(const Config& config) : m_impl{std::make_unique<Impl>()}
     io.ConfigDpiScaleFonts = true;
     io.IniFilename = nullptr;
 
-    ImGui::StyleColorsDark();
-    ImGui::GetStyle().ScaleAllSizes(dpiScale);
+    // Police du système plutôt que celle intégrée à ImGui, qui est une bitmap
+    // de treize pixels datant de 2006 : elle fait daté bien avant que les
+    // couleurs n'y soient pour quelque chose, et elle rend mal les accents.
+    //
+    // Depuis la version 1.92, les glyphes sont chargés à la demande : il n'y a
+    // plus de plage à déclarer, les caractères accentués arrivent tout seuls.
+    const std::string fontPath = platform::segoeUiPath(platform::FontWeight::Regular);
+    if (!fontPath.empty())
+    {
+        io.Fonts->AddFontFromFileTTF(fontPath.c_str(), kBaseFontSize);
+    }
+
+    theme::applyStyle(dpiScale);
 
     if (!ImGui_ImplWin32_Init(m_impl->window) || !ImGui_ImplDX11_Init(m_impl->device, m_impl->deviceContext))
     {
@@ -294,6 +339,11 @@ ImGuiHost::~ImGuiHost()
     {
         ::UnregisterClassW(kWindowClassName, m_impl->instance);
     }
+}
+
+void* ImGuiHost::nativeHandle() const noexcept
+{
+    return m_impl->window;
 }
 
 bool ImGuiHost::isValid() const noexcept
@@ -337,7 +387,7 @@ void ImGuiHost::endFrame()
 {
     ImGui::Render();
 
-    constexpr float clearColour[4] = {0.06f, 0.07f, 0.09f, 1.0f};
+    constexpr float clearColour[4] = {0.039f, 0.055f, 0.047f, 1.0f};
     m_impl->deviceContext->OMSetRenderTargets(1, &m_impl->backBufferView, nullptr);
     m_impl->deviceContext->ClearRenderTargetView(m_impl->backBufferView, clearColour);
 

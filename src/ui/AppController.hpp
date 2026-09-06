@@ -5,6 +5,7 @@
 #include "engine/RateGovernor.hpp"
 #include "platform/Hotkey.hpp"
 
+#include <cstddef>
 #include <memory>
 #include <string>
 
@@ -101,8 +102,45 @@ public:
     /// @return false si le système l'a refusée ; l'ancienne reste active.
     bool rebindPanicHotkey(platform::Hotkey hotkey);
 
-    /// Ajoute la position courante du curseur à la liste des cibles.
+    /// Utiliser les points enregistrés plutôt que la position courante.
+    ///
+    /// Les points restent mémorisés quand le mode repasse sur la position
+    /// courante : basculer d'un mode à l'autre ne doit pas effacer un travail
+    /// de saisie.
+    void setUseTargets(bool enabled) noexcept;
+    [[nodiscard]] bool useTargets() const noexcept;
+
+    /// Fenêtre principale, à effacer pendant une capture de point.
+    void setMainWindow(void* window) noexcept;
+
+    /// Démarre la désignation d'un point : l'application s'efface et le
+    /// prochain clic de l'utilisateur, où qu'il soit, devient une cible.
+    ///
+    ///  false si le système a refusé l'interception.
+    bool beginPointCapture();
+
+    /// Interrompt une désignation en cours.
+    void cancelPointCapture();
+
+    [[nodiscard]] bool capturingPoint() const noexcept;
+
+    /// Position du curseur pendant une désignation, pour l'affichage.
+    [[nodiscard]] ScreenPoint liveCursor() const noexcept;
+
+    /// À appeler une fois par image : récupère le point désigné s'il y en a un.
+    ///
+    /// Le résultat arrive depuis un crochet système, hors du flux de
+    /// l'interface ; il faut donc venir le chercher.
+    void pollPointCapture();
+
+    /// Ajoute immédiatement la position courante du curseur à la liste.
     void captureTarget();
+
+    /// Retire une cible par son rang.
+    ///
+    /// Sans effet si le rang est hors de la liste : une suppression sur une
+    /// liste qui vient de changer sous les doigts ne doit pas planter.
+    void removeTarget(std::size_t index);
 
     void clearTargets();
 
